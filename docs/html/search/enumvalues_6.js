@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['i2c_5fcb_5fcmd_5fread',['I2C_CB_CMD_READ',['../group__group__ccgxAppCommon.html#gga459a4d34fea4545cb049bcbc0aa2924cafe582baaa37c28d2b37e009c4d9b6e4c',1,'i2c.h']]],
+  ['i2c_5fcb_5fcmd_5ftimeout',['I2C_CB_CMD_TIMEOUT',['../group__group__ccgxAppCommon.html#gga459a4d34fea4545cb049bcbc0aa2924ca5a5a7ed3afc68d0a0f9a7281dbea598c',1,'i2c.h']]],
+  ['i2c_5fcb_5fcmd_5fwrite',['I2C_CB_CMD_WRITE',['../group__group__ccgxAppCommon.html#gga459a4d34fea4545cb049bcbc0aa2924cade77d0bd54e7e1f2e1e793f356c01942',1,'i2c.h']]],
+  ['i2c_5fcb_5fcmd_5fxfer_5fend',['I2C_CB_CMD_XFER_END',['../group__group__ccgxAppCommon.html#gga459a4d34fea4545cb049bcbc0aa2924ca9ac7449667cd3b27fdc767c1c513f6c0',1,'i2c.h']]],
+  ['i2c_5fcb_5fslave_5faddr_5fmatch',['I2C_CB_SLAVE_ADDR_MATCH',['../group__group__ccgxAppCommon.html#gga459a4d34fea4545cb049bcbc0aa2924ca7b437836f5a0ae3eb59a7fa1710ad712',1,'i2c.h']]],
+  ['i2c_5fscb_5fclock_5ffreq_5f100_5fkhz',['I2C_SCB_CLOCK_FREQ_100_KHZ',['../group__group__ccgxAppCommon.html#gga39039019bd1c23cdc1d45a1bf0ea8b74ac7f1880c89328e79010975bc5ad4a368',1,'i2c.h']]],
+  ['i2c_5fscb_5fclock_5ffreq_5f1_5fmhz',['I2C_SCB_CLOCK_FREQ_1_MHZ',['../group__group__ccgxAppCommon.html#gga39039019bd1c23cdc1d45a1bf0ea8b74a3e40b72ad3944d135f3d0125a741fb5c',1,'i2c.h']]],
+  ['i2c_5fscb_5fclock_5ffreq_5f400_5fkhz',['I2C_SCB_CLOCK_FREQ_400_KHZ',['../group__group__ccgxAppCommon.html#gga39039019bd1c23cdc1d45a1bf0ea8b74a4db4a21e3d10ab9a4aa3d030dfa7a15b',1,'i2c.h']]],
+  ['i2c_5fscb_5fmode_5falp_5fridge',['I2C_SCB_MODE_ALP_RIDGE',['../group__group__ccgxAppCommon.html#gga929dc6e6ed7bb0e330bcbd1285acc0d1a9903c0821e9aeea1e6121bd1d80413e0',1,'i2c.h']]],
+  ['i2c_5fscb_5fmode_5fhpi',['I2C_SCB_MODE_HPI',['../group__group__ccgxAppCommon.html#gga929dc6e6ed7bb0e330bcbd1285acc0d1abf718bae34faeb8416886b96aef6f4ac',1,'i2c.h']]],
+  ['i2c_5fscb_5fmode_5fmaster',['I2C_SCB_MODE_MASTER',['../group__group__ccgxAppCommon.html#gga929dc6e6ed7bb0e330bcbd1285acc0d1a20256ed7ecac9e0284e50fd79272dc59',1,'i2c.h']]],
+  ['i2c_5fscb_5fnum_5fstates',['I2C_SCB_NUM_STATES',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864a6627483a8d6bc8a9ead5f2a78581f4f7',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5fclk_5fstretch',['I2C_SCB_STATE_CLK_STRETCH',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864ab764a31bdc6446345931019d3b5dd618',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5fdisabled',['I2C_SCB_STATE_DISABLED',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864a15041879a3dc1884dc1a8936ae835378',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5ferror',['I2C_SCB_STATE_ERROR',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864ad62d35142d956e849487d792991d0a5f',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5fidle',['I2C_SCB_STATE_IDLE',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864a596bf12eea8f8ab26ba27a4626b99a93',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5finit',['I2C_SCB_STATE_INIT',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864ac50d8b58e54cb0faa1bd5f7c34cabfeb',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5fpreamble',['I2C_SCB_STATE_PREAMBLE',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864a59f356243d6645440b91bdd864b29806',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5fread',['I2C_SCB_STATE_READ',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864af45f9af5cfa42f4af56471457b722b7e',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5fwrite',['I2C_SCB_STATE_WRITE',['../group__group__ccgxAppCommon.html#ggacebb36a46a6b7abb6d95ff1847116864a2a7603c06a234c402f23b6b8207fc4e0',1,'i2c.h']]],
+  ['inst_5fevt_5fhard_5ffault',['INST_EVT_HARD_FAULT',['../group__group__ccgxAppCommon.html#gga8c1472d4978873442e3b2040b9279c7ba883dcd2a5cbbee9a781c26be1c5422e7',1,'instrumentation.h']]],
+  ['inst_5fevt_5fwdt_5freset',['INST_EVT_WDT_RESET',['../group__group__ccgxAppCommon.html#gga8c1472d4978873442e3b2040b9279c7ba9ee6c3e15702ef5bc0f5473cbd599f2b',1,'instrumentation.h']]]
+];

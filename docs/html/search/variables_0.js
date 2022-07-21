@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['active_5fboot_5fapp',['active_boot_app',['../group__group__ccgxAppCommon.html#a3c153f29aca9fd434ae31cf669a51bc3',1,'sys_fw_metadata_t']]],
+  ['active_5frow_5fnum',['active_row_num',['../group__group__ccgxAppCommon.html#ad710a44db79528811e31d0c5a311381f',1,'sFWCT_ROW_NO_T']]],
+  ['actv_5fswap_5fcount',['actv_swap_count',['../group__group__ccgxAppCommon.html#a1052e2bd009403deca557ca9e34a2c80',1,'app_status_t']]],
+  ['actv_5fswap_5fdelay',['actv_swap_delay',['../group__group__ccgxAppCommon.html#aad040c998eb01494a675369125cb4ef1',1,'app_status_t']]],
+  ['actv_5fswap_5ftype',['actv_swap_type',['../group__group__ccgxAppCommon.html#a0788033ffac992e0dfa6d53785505ed4',1,'app_status_t']]],
+  ['afc_5fretry_5fcount',['afc_retry_count',['../group__group__ccgxAppCommon.html#a33ba77411136f5fc7786f20acb13020f',1,'bc_status_t']]],
+  ['afc_5fsnk_5fcur_5fvi_5fbyte',['afc_snk_cur_vi_byte',['../group__group__ccgxAppCommon.html#a970ce029cfe65d6129a267132e8b0cb5',1,'bc_status_t']]],
+  ['afc_5fsrc_5fcur_5fmatch_5fbyte',['afc_src_cur_match_byte',['../group__group__ccgxAppCommon.html#a2f1616b42e0db580a62745050e52fbfe',1,'bc_status_t']]],
+  ['afc_5fsrc_5fis_5fmatched',['afc_src_is_matched',['../group__group__ccgxAppCommon.html#ac391cc6a0866adfef9b1a190697d31db',1,'bc_status_t']]],
+  ['afc_5fsrc_5flast_5fmatch_5fbyte',['afc_src_last_match_byte',['../group__group__ccgxAppCommon.html#a93dd3e27b785108d9c26a7b458ed88c5',1,'bc_status_t']]],
+  ['afc_5fsrc_5fmatch_5fcount',['afc_src_match_count',['../group__group__ccgxAppCommon.html#aecf5b5e23f122eaa5bb9f4039feb942a',1,'bc_status_t']]],
+  ['afc_5fsrc_5fmatched_5fbyte',['afc_src_matched_byte',['../group__group__ccgxAppCommon.html#a496b0b81b0ff2e1645c7a574718f90f5',1,'bc_status_t']]],
+  ['afc_5fsrc_5fmsg_5fcount',['afc_src_msg_count',['../group__group__ccgxAppCommon.html#a3bdd5dfbaa6a53bf417604c27303da4f',1,'bc_status_t']]],
+  ['afc_5ftx_5factive',['afc_tx_active',['../group__group__ccgxAppCommon.html#ac51e739cdbe05652c4462dacd688f593',1,'bc_status_t']]],
+  ['alt_5fmode_5fentered',['alt_mode_entered',['../group__group__ccgxAppCommon.html#a8dc7c28fdd685df922c21cebe19270c3',1,'app_status_t']]],
+  ['alt_5fmode_5ftrig_5fmask',['alt_mode_trig_mask',['../group__group__ccgxAppCommon.html#a87cb4e0541a343a91da403cd335adeeb',1,'app_status_t']]],
+  ['altmodetrig',['altModeTrig',['../group__group__ccgxAppCommon.html#aa6eff7e65790874ce8264acda806b81d',1,'alt_mode_config_t']]],
+  ['app_5fget_5fcallback_5fptr',['app_get_callback_ptr',['../structapp__sln__handler__t.html#a7aa9fd118b52df238b2aec85677ce952',1,'app_sln_handler_t']]],
+  ['app_5fpending_5fswaps',['app_pending_swaps',['../group__group__ccgxAppCommon.html#a3972096e7f7b764796ff6c666cffa2f3',1,'app_status_t']]],
+  ['appresp',['appResp',['../group__group__ccgxAppCommon.html#ae11bef8d7fcd525554235dd3a6ad33fb',1,'app_status_t']]],
+  ['apu_5freset_5fpending',['apu_reset_pending',['../group__group__ccgxAppCommon.html#a67b070586b67c405a9fa99675d9995a9',1,'app_status_t']]],
+  ['attach',['attach',['../group__group__ccgxAppCommon.html#a29c68e23978f60c92ce84331486bbd68',1,'bc_status_t']]]
+];
