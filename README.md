@@ -15,7 +15,6 @@ The CCGxAppCommon Middleware is released in the source form for use with WLC1 si
 
 <br>
 
-<img src = "images/ifx-cy-banner.png" width = "800"/>
 
 ---------------------------------------------------------
 
