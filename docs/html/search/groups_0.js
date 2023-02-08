@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['common_20source_20files',['Common source files',['../group__group__ccgxAppCommon.html',1,'']]]
+  ['app_20common_20middleware',['App Common Middleware',['../group__group__ccgxAppCommon.html',1,'']]]
 ];

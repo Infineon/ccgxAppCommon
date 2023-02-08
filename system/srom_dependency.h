@@ -1,12 +1,13 @@
 /******************************************************************************
 * File Name: srom_dependency.h
+* \version 2.0
 *
 * Description: Header file for CCG7S SROM dependencies
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #ifndef SROM_DEPENDENCY_H_
@@ -14,6 +15,7 @@
 
 #include "cy_pdstack_common.h"
 
+#if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))
 #if (!CCG_HPI_ENABLE && !CCG_HPI_OVER_LIN_ENABLE)
 /**
  * @typedef hpi_reg_section_t
@@ -91,6 +93,51 @@ typedef struct
 } hpi_oc_buffer_t;
 
 /**
+ * @typedef legacy_hpi_auto_soln_cb_t
+ * @brief Structure to hold the Solution interface for HPI Auto operation.
+ * This is only required for CCG7D for rom compatibility.
+ * Solution is expected to fill the structure with required pointers to function
+ * to accomplish the command specific tasks. All the registered functions
+ * should be non-blocking and take minimum execution time.
+ */
+typedef struct
+{
+    const bc_status_t* (*legacy_soln_bc_get_status_handler) (
+        uint8_t port               /**< PD port index. */
+        );
+
+    auto_cfg_settings_t* (*legacy_soln_get_auto_config_table) (
+        uint8_t port               /**< PD port index. */
+        );
+
+    uint32_t (*legacy_soln_get_fault_status) (
+        uint8_t port               /**< PD port index. */
+        );
+
+    cy_en_pdstack_status_t (*legacy_soln_get_sensor_temperature) (
+        uint8_t port,              /**< PD port index. */
+        uint8_t *buffer            /**< Output temperature place holder. */
+        );
+
+    uint16_t (*legacy_soln_get_vbus_voltage)  (
+        uint8_t port               /**< PD port index. */
+        );
+
+    uint16_t (*legacy_soln_get_vbus_current)  (
+        uint8_t port               /**< PD port index. */
+        );
+
+    uint16_t (*legacy_soln_get_battery_voltage)  (
+        uint8_t port               /**< PD port index. */
+        );
+
+    uint8_t (*legacy_soln_get_oc_details)  (
+        uint8_t port,              /**< PD port index. */
+        hpi_oc_buffer_t *buffer    /**<OC placeholder. */
+        );
+} legacy_hpi_auto_soln_cb_t;
+
+/**
  * @typedef hpi_auto_soln_cb_t
  * @brief Structure to hold the Solution interface for HPI Auto operation.
  * Solution is expected to fill the structure with required pointers to function
@@ -157,6 +204,25 @@ typedef uint32_t (*hpi_black_box_cb_t)(void);
 typedef void (*ccg_power_contract_complete) (cy_stc_pdstack_context_t *ptrPdStackContext, uint8_t power);
 
 /**
+ * @typedef srom_ccg_power_contract_complete
+ *
+ * @brief Function pointer defining the function type to be registered with
+ * Power throttle functionality. Registered function will get called post
+ * recontract completion. If nothing was attached at the time of power
+ * update request, power notified will be 0.
+ * Callback will only be notified if ccg_power_throttle_set_oc() function
+ * accepted the request successfully.
+ *
+ * @param port Port index.
+ * @param power Current power consumption. Value of 0 signifies no attach.
+ *
+ * @return None.
+ */
+typedef void (*srom_ccg_power_contract_complete) (uint8_t port, uint8_t power);
+
+
+
+/**
  * @typedef operating_condition_t
  * @brief Define the system operating condition values.
  */
@@ -219,7 +285,7 @@ void lins_scb_enable_wakeup(uint8_t scb_index);
 
 /* QAC suppression 3408: SROM generation needs definition to this external function to build. Hence,
  * dummy defintion provided. */
-void EC_INT_Write(uint8 value); /* PRQA S 3408 */
+void EC_INT_Write(uint8_t value); /* PRQA S 3408 */
 
 bool vconn_enable(cy_stc_pdstack_context_t *ptrPdStackContext, uint8_t channel);
 
@@ -240,5 +306,7 @@ uint8_t ccg_power_throttle_get_port_budget(cy_stc_pdstack_context_t *ptrPdStackC
 cy_en_pdstack_status_t ccg_power_throttle_set_pdp(cy_stc_pdstack_context_t *ptrPdStackContext, uint8_t power, ccg_power_contract_complete cb);
 cy_en_pdstack_status_t ccg_power_throttle_get_set_config_oc(cy_stc_pdstack_context_t *ptrPdStackContext, uint8_t *oc2, uint8_t *oc3, bool flag, ccg_power_contract_complete cb);
 #endif /* (!(CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_HPI_ENABLE || CCG_BOOT)) */
+
+#endif /* defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_CCG7D) */
 
 #endif /* SROM_DEPENDENCY_H_ */

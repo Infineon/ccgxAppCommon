@@ -1,19 +1,18 @@
-/***************************************************************************//**
-* \file gpio.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   gpio.h
+* \version 2.0
 *
-* This is GPIO and IO mapping control functions header file
+* Description: GPIO and IO mapping control functions
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2022-2023 Cypress Semiconductor $
 *******************************************************************************/
+
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -28,7 +27,10 @@
 /*****************************************************************************
  ********************************* Macros ************************************
  *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 #define GPIO_DM_FIELD_SIZE      (3u)            /**< GPIO drive mode field size. */
 #define GPIO_DM_FIELD_MASK      ((uint32_t)7u)            /**< GPIO drive mode field mask without offset. */
 #define GPIO_INT_FIELD_MASK     ((uint32_t)3u)            /**< GPIO interrupt configuration field mask. */
@@ -46,10 +48,13 @@
                                                      Only valid if P5.x pins are present. */
 #define GPIO_PORT6_INTR_NO      (6u)            /**< Interrupt vector number for P6.x pins.
                                                      Only valid if P6.x pins are present. */
-
+/** \} group_ccgxAppCommon_macros */
 /*****************************************************************************
  ********************************* Data Types ********************************
  *****************************************************************************/
+/** \addtogroup group_ccgxAppCommon_enums
+* \{
+*/
 
 /**
  * @brief List of pins supported on CCGx devices.
@@ -552,7 +557,7 @@ typedef enum hsiom_mode_t
 
 #endif /* CCG */
 } hsiom_mode_t;
-
+/** \} group_ccgxAppCommon_enums */
 /**
  * @brief Callback type for GPIO interrupt notification.
  * @param port_pin Parameter identifying the GPIO port and pin.
@@ -563,7 +568,10 @@ typedef void (*gpio_intr_cb_t)(gpio_port_pin_t port_pin, bool pin_state);
 /*****************************************************************************
  **************************** Function prototypes ****************************
  *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief Sets the GPIO to the required state.
  *
@@ -729,7 +737,7 @@ typedef bool (*gpio_get_intr_fptr)(gpio_port_pin_t port_pin);
 typedef void (*gpio_clear_intr_fptr)(gpio_port_pin_t port_pin);
 
 /** @endcond */
-
+/** \} group_ccgxAppCommon_functions */
 #endif /* GPIO_H_ */
 
 /** \} group_ccgxAppCommon */

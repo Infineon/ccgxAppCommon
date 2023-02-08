@@ -1,8 +1,9 @@
 /*
  * @cc_boot.c
+ * \version 2.0
  * @brief CC bootloader policy source file.
  *
- * Copyright (2014-2020), Cypress Semiconductor Corporation or a subsidiary of
+ * Copyright (2014-2023), Cypress Semiconductor Corporation or a subsidiary of
  * Cypress Semiconductor Corporation. All rights reserved.
  *
  * This software, including source code, documentation and related materials
@@ -36,16 +37,28 @@
 #include <config.h>
 #include "flash.h"
 #include "cy_gpio.h"
+#include "srom.h"
 #include "cc_boot.h"
 #include "uvdm.h"
 #include "system.h"  
-#include "srom.h"
 #include "pdss_hal.h"
-#include "cy_sw_timer.h"
-#include "cy_sw_timer_id.h"
+#include <cy_pdutils_sw_timer.h>
+#include "app_timer_id.h"
+#include "cy_pdstack_timer_id.h"
 #include "cy_pdstack_common.h"
+#include "cy_usbpd_common.h"
+#include "cy_pdutils.h"
 #if CCG_BOOT
-
+/** Pointer array for HW IP register structure. */
+static PPDSS_REGS_T gl_pdss[NO_OF_TYPEC_PORTS] =
+{
+    PDSS0
+#if CCG_PD_DUALPORT_ENABLE
+    ,
+    PDSS1
+#endif /* CCG_PD_DUALPORT_ENABLE */
+};
+#if CC_BOOT
 #if SOURCE_BOOT
 /* CC1/2 trims */
 #define SFLASH_PDSS_PORT0_RP_MODE_DEF_TRIM(port) (*(volatile uint8_t *)((0x0FFFF410u) + \
@@ -297,16 +310,6 @@ static volatile uint32_t gl_cc_count[NO_OF_TYPEC_PORTS][2] = {{0, 0}
 #endif
 };
 static volatile uint32_t gl_active_channel[NO_OF_TYPEC_PORTS];
-
-/** Pointer array for HW IP register structure. */
-static PPDSS_REGS_T gl_pdss[NO_OF_TYPEC_PORTS] =
-{
-    PDSS0
-#if CCG_PD_DUALPORT_ENABLE
-    ,
-    PDSS1
-#endif /* CCG_PD_DUALPORT_ENABLE */
-};
 
 /** Pointer array for HW IP register structure. */
 static PPDSS_TRIMS_REGS_T gl_pdss_trims[NO_OF_TYPEC_PORTS] =
@@ -669,7 +672,7 @@ void pdss_phy_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 
 #if (VBUS_CTRL_TYPE == VBUS_CTRL_OPTO_FB) 
     /* Enable shunt */
-    PDSS->ea_ctrl |= PDSS_EA_CTRL_EN_SHNT | PDSS_EA_CTRL_SHNT_ST_OPAMP_ENB;
+    PDSS_REG->ea_ctrl |= PDSS_EA_CTRL_EN_SHNT | PDSS_EA_CTRL_SHNT_ST_OPAMP_ENB;
 #ifndef CY_DEVICE_PAG1S
     PDSS_TRIMS->trim_ea1_0 = 0xA0;
 #endif /* !CY_DEVICE_PAG1S */
@@ -742,12 +745,12 @@ void pdss_phy_init(cy_stc_pdstack_context_t *ptrPdStackContext)
     {
         CY_USBPD_REG_FIELD_UPDATE(PDSS_TRIMS0->trim_bb_40vreg_1, PDSS_TRIM_BB_40VREG_1_VREG_TRIM_INRUSH, 0x0B);
     }
-#if (CCG_DUALPORT_ENABLE)
+#if (CCG_PD_DUALPORT_ENABLE)
     else
     {
         CY_USBPD_REG_FIELD_UPDATE(PDSS_TRIMS1->trim_bb_40vreg_1, PDSS_TRIM_BB_40VREG_1_VREG_TRIM_INRUSH, 0x0B);        
     }
-#endif
+#endif /* (CCG_PD_DUALPORT_ENABLE) */
     
     /* Configure 40VREG for 5V and active mode */
     CY_USBPD_REG_FIELD_UPDATE(PDSS_REG->refgen_4_ctrl, PDSS_REFGEN_4_CTRL_SEL12, 2);
@@ -764,8 +767,8 @@ void pdss_phy_init(cy_stc_pdstack_context_t *ptrPdStackContext)
     Cy_SysLib_Delay(1);
 #else    
     /* REF-GEN updates from CDT 275028. */
-    PDSS->refgen_0_ctrl &= ~PDSS_REFGEN_0_CTRL_REFGEN_PD;
-    PDSS->refgen_2_ctrl  = 0x003D6461;
+    PDSS_REG->refgen_0_ctrl &= ~PDSS_REFGEN_0_CTRL_REFGEN_PD;
+    PDSS_REG->refgen_2_ctrl  = 0x003D6461;
 #endif /* defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S); */
 
 #if (SOURCE_BOOT)
@@ -775,7 +778,7 @@ void pdss_phy_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 #else
     PDSS_TRIMS->trim_cc_1 = SFLASH_PDSS_PORT0_RP_MODE_DEF_TRIM(port);
     PDSS_TRIMS->trim_cc_2 = SFLASH_PDSS_PORT0_RP_MODE_DEF_TRIM(port);
-#endif
+#endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) */
 
 #if FPGA
     PDSS_REG->cc_ctrl_0 |= (PDSS_CC_CTRL_0_RD_CC1_DB_DIS | PDSS_CC_CTRL_0_RD_CC2_DB_DIS |
@@ -811,7 +814,7 @@ void pdss_phy_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) */
     PDSS_REG->tx_ctrl |= CY_PD_DR_PR_ROLE(CY_PD_PRT_TYPE_DFP, CY_PD_PRT_ROLE_SOURCE);
 #else
-#if (defined(CY_DEVICE_WLC1))
+#if (defined(CY_DEVICE_SERIES_WLC1))
 
     /* Rd Enable is not needed for WICG1  only enable comparators.
      * Connect Up comparaator to CC2 and Down comparator to CC1
@@ -823,15 +826,15 @@ void pdss_phy_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 #else
 
     /* Enable proper Rd and enable comparators.
-     * Connect Up comparaator to CC2 and Down comparator to CC1
+     * Connect Up comparator to CC2 and Down comparator to CC1
      */
     PDSS_REG->cc_ctrl_0 |= (PDSS_CC_CTRL_0_RD_CC1_DB_DIS | PDSS_CC_CTRL_0_RD_CC2_DB_DIS |
             PDSS_CC_CTRL_0_RD_CC1_EN | PDSS_CC_CTRL_0_RD_CC2_EN | PDSS_CC_CTRL_0_RX_EN |
             (PDSS_CC_CTRL_0_CMP_LA_VSEL_CFG << PDSS_CC_CTRL_0_CMP_LA_VSEL_POS) |
             PDSS_CC_CTRL_0_CMP_EN);
 
-#endif /* CY_DEVICE_WLC1 */
-#endif
+#endif /* CY_DEVICE_SERIES_WLC1 */
+#endif /* SOURCE_BOOT */
     /*
      * GoodCRC auto response configuration. Since the receiver is controlled,
      * these registers can be enabled all the time.
@@ -910,7 +913,8 @@ void pdss_phy_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* SOURCE_BOOT */
 #if VBAT_GND_FET_IO_ENABLE
     /* Remove the pulldown to free up the GPIO */
-    CY_USBPD_REG_FIELD_UPDATE(PDSS_REG->bb_bat2gnd_prot_cnfg, PDSS_BB_BAT2GND_PROT_CNFG_BAT2GND_PROT_SEL, 4u);
+	CALL_MAP(gpio_hsiom_set_config)(gl_vbat_gnd_fet_gpio[port], 
+        HSIOM_MODE_GPIO, GPIO_DM_STRONG, (bool)1);
 #endif /* VBAT_GND_FET_IO_ENABLE */
 #endif /* defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) */
 }
@@ -1351,26 +1355,21 @@ static uint32_t gl_lszcd_trim[NO_OF_TYPEC_PORTS];
 static uint16_t gl_bb_ss_pwm_duty[NO_OF_TYPEC_PORTS];
 #endif /* BOOT_BB_STARTUP_WITH_LOAD_EN */
 
-void turn_on_vbus(cy_stc_pdstack_context_t *context)
+static void pdss_turn_on_pfet(uint8_t port)
 {
-    uint8_t port = context->port;
-    /* Turn ON buck-boost regulation */
-    pdss_enable_bb(context);
-
 #if !BOOT_SRC_FET_BYPASS_EN
     /* Provider FET operation is not needed in case of source FET bypass mode */
-    gl_pdss[port]->ngdo_ctrl |= (PDSS_NGDO_CTRL_NGDO_ISO_N | PDSS_NGDO_CTRL_NGDO_EN_LV);
-    Cy_SysLib_DelayUs(50);
-    gl_pdss[port]->ngdo_ctrl |= (PDSS_NGDO_CTRL_NGDO_CP_EN);
-    Cy_SysLib_DelayUs(50);
-    gl_pdss[port]->bb_ngdo_0_gdrv_en_ctrl = (PDSS_BB_NGDO_0_GDRV_EN_CTRL_SEL_ON_OFF |
-            PDSS_BB_NGDO_0_GDRV_EN_CTRL_GDRV_EN_ON_VALUE);
+	    gl_pdss[port]->ngdo_ctrl |= (PDSS_NGDO_CTRL_NGDO_ISO_N | PDSS_NGDO_CTRL_NGDO_EN_LV);
+	    Cy_SysLib_DelayUs(50);
+	    gl_pdss[port]->ngdo_ctrl |= (PDSS_NGDO_CTRL_NGDO_CP_EN);
+	    Cy_SysLib_DelayUs(50);
+	    gl_pdss[port]->bb_ngdo_0_gdrv_en_ctrl = (PDSS_BB_NGDO_0_GDRV_EN_CTRL_SEL_ON_OFF |
+	            PDSS_BB_NGDO_0_GDRV_EN_CTRL_GDRV_EN_ON_VALUE);
 #endif /* !BOOT_SRC_FET_BYPASS_EN */
 }
 
-void turn_off_vbus(cy_stc_pdstack_context_t *context)
+static void pdss_turn_off_pfet(uint8_t port)
 {
-    uint8_t port = context->port;
 #if !BOOT_SRC_FET_BYPASS_EN
     /* Provider FET operation is not needed in case of source FET bypass mode */
     gl_pdss[port]->bb_ngdo_0_gdrv_en_ctrl = PDSS_BB_NGDO_0_GDRV_EN_CTRL_DEFAULT;
@@ -1379,7 +1378,19 @@ void turn_off_vbus(cy_stc_pdstack_context_t *context)
     Cy_SysLib_DelayUs(50);
     gl_pdss[port]->ngdo_ctrl &= ~(PDSS_NGDO_CTRL_NGDO_ISO_N | PDSS_NGDO_CTRL_NGDO_EN_LV);
 #endif /* !BOOT_SRC_FET_BYPASS_EN */
+}
 
+void turn_on_vbus(cy_stc_pdstack_context_t *context)
+{
+    /* Turn ON buck-boost regulation */
+    pdss_enable_bb(context);
+
+}
+
+void turn_off_vbus(cy_stc_pdstack_context_t *context)
+{
+    uint8_t port = context->port;
+    pdss_turn_off_pfet(port);
     /* Turn OFF buck-boost regulation */
     pdss_disable_bb(context);
 }
@@ -1587,12 +1598,14 @@ static void pdss_bb_set_mode(uint8_t port, uint8_t mode)
             PDSS_TRIM_BB_GDRVO_1_TRIM_HSRCP, 0x3F);
         CY_USBPD_REG_FIELD_UPDATE(gl_pdss[port]->bb_gdrvo_1_ctrl, 
             PDSS_BB_GDRVO_1_CTRL_BB_GDRVO_T_HSRCP, 0x40);
-        CY_USBPD_REG_FIELD_UPDATE(gl_pdss[port]->bbctrl_func_ctrl, 
-            PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVO_RCP_DISABE, 0u);
+
+        gl_pdss[port]->bbctrl_func_ctrl = ((gl_pdss[port]->bbctrl_func_ctrl &
+            ~(PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVO_RCP_DISABE_MASK |
+              PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVI_ZCD_DISABE_MASK)) |
+             ((uint32_t)0u << PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVO_RCP_DISABE_POS) |
+             ((uint32_t)4u << PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVI_ZCD_DISABE_POS));
 
         /* LSZCD and corresponding trims configuration for buck-only FCCM mode. */
-        CY_USBPD_REG_FIELD_UPDATE(gl_pdss[port]->bbctrl_func_ctrl,
-        PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVI_ZCD_DISABE, 4u);
         CY_USBPD_REG_FIELD_UPDATE(gl_pdss_trims[port]->trim_bb_gdrvi_1,
         PDSS_TRIM_BB_GDRVI_1_TRIM_LSZCD, 0u);
         gl_pdss[port]->bb_gdrvi_0_ctrl |= (1u <<
@@ -1611,12 +1624,13 @@ static void pdss_bb_set_mode(uint8_t port, uint8_t mode)
         /* HSRCP and GDRVO configuration for PSM mode */
         CY_USBPD_REG_FIELD_UPDATE(gl_pdss[port]->bb_gdrvo_1_ctrl, 
             PDSS_BB_GDRVO_1_CTRL_BB_GDRVO_T_HSRCP, 0u);
-        CY_USBPD_REG_FIELD_UPDATE(gl_pdss[port]->bbctrl_func_ctrl, 
-            PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVO_RCP_DISABE, 2u);
+        gl_pdss[port]->bbctrl_func_ctrl = ((gl_pdss[port]->bbctrl_func_ctrl &
+            ~(PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVO_RCP_DISABE_MASK |
+              PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVI_ZCD_DISABE_MASK)) |
+             ((uint32_t)2u << PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVO_RCP_DISABE_POS) |
+             ((uint32_t)4u << PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVI_ZCD_DISABE_POS));
 
         /* LSZCD and corresponding trims configuration for buck-only PSM mode. */
-        CY_USBPD_REG_FIELD_UPDATE(gl_pdss[port]->bbctrl_func_ctrl,
-        PDSS_BBCTRL_FUNC_CTRL_BBCTRL_GDRVI_ZCD_DISABE, 4u);
         CY_USBPD_REG_FIELD_UPDATE(gl_pdss_trims[port]->trim_bb_gdrvi_1,
         PDSS_TRIM_BB_GDRVI_1_TRIM_LSZCD, gl_lszcd_trim[port]);
         gl_pdss[port]->bb_gdrvi_0_ctrl &= ~(1u <<
@@ -1629,6 +1643,7 @@ static void pdss_bb_fccm_en_cb_t(cy_timer_id_t id, void *callbackContext)
     (void)id;
     uint8_t port = (((cy_stc_pdstack_context_t *)callbackContext)->port);
     pdss_bb_set_mode(port, BB_MODE_FCCM);
+        pdss_turn_on_pfet(port);
 }
 
 static void pdss_bb_switch_to_ea(cy_stc_pdstack_context_t *context)
@@ -1690,8 +1705,8 @@ static void pdss_bb_switch_to_ea(cy_stc_pdstack_context_t *context)
      * Enable Master FCCM mode after a delay to avoid overshoot/undershoot
      * because of negative inductor current.
      */
-    (void)cy_sw_timer_start(context->ptrTimerContext, context,
-                    APP_HAL_GENERIC_TIMER, BB_FCCM_EN_DELAY_TIMER_MS, pdss_bb_fccm_en_cb_t);
+    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context,
+    		GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER), BB_FCCM_EN_DELAY_TIMER_MS, pdss_bb_fccm_en_cb_t);
 #else /* !BOOT_BB_FCCM_MODE_EN */
     /* Turn on provider FET once BB startup is completed */
     pdss_turn_on_pfet(port);
@@ -1699,6 +1714,43 @@ static void pdss_bb_switch_to_ea(cy_stc_pdstack_context_t *context)
 }
 #endif /* BOOT_BB_FCCM_MODE_EN */
 
+#if BOOT_BB_STARTUP_WITH_LOAD_EN
+static void pdss_bb_en_with_load_cb_t(cy_timer_id_t id, void *callbackContext)
+{
+    (void)id;
+	cy_stc_pdstack_context_t * context = ((cy_stc_pdstack_context_t *)callbackContext);
+    uint8_t port = (context->port);
+
+    /* 
+     * Keep monitoring VBUS_IN to reach soft start cut-off voltage.
+     * And keep incrementing the soft start duty every 1mS if the voltage 
+     * is not building up.
+     */
+    if(pd_bb_vbus_in_comp_status(port) == false)
+    {
+        /* 
+         * Increase soft start duty and start monitoring again.
+         */
+        gl_bb_ss_pwm_duty[port] += BB_SOFT_START_DUTY_STEP_UP_PER;
+
+        pdss_bb_ss_pwm_duty_set(port, gl_bb_ss_pwm_duty[port]);
+		
+		(void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context,
+				GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER), BB_SOFT_START_MON_TIMER_MS, pdss_bb_en_with_load_cb_t);
+    }
+    else
+    {
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER));
+        pd_bb_vbus_in_comp_dis(port);
+        gl_bb_ss_pwm_duty[port] = BB_PWM_SS_DUTY_PER;
+        pdss_bb_ss_pwm_duty_set(port, gl_bb_ss_pwm_duty[port]);
+
+        /* Switch to EA mode */
+        pdss_bb_switch_to_ea(context);
+    }
+}
+#endif /* BOOT_BB_STARTUP_WITH_LOAD_EN */
+#if BOOT_BB_STARTUP_WITH_LOAD_EN
 static void pdss_bb_enable_cb_t(cy_timer_id_t id, void *callbackContext)
 {
     (void)id;
@@ -1725,12 +1777,12 @@ static void pdss_bb_enable_cb_t(cy_timer_id_t id, void *callbackContext)
 
         pdss_bb_ss_pwm_duty_set(port, gl_bb_ss_pwm_duty[port]);
 
-        (void)cy_sw_timer_start(context->ptrTimerContext, context,
-                APP_HAL_GENERIC_TIMER, BB_SOFT_START_MON_TIMER_MS, pdss_bb_enable_cb_t);
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context,
+        		GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER), BB_SOFT_START_MON_TIMER_MS, pdss_bb_enable_cb_t);
     }
     else
     {
-        cy_sw_timer_stop(context->ptrTimerContext, APP_HAL_GENERIC_TIMER);
+    	CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER));
         gl_bb_ss_pwm_duty[port] = BB_PWM_SS_DUTY_PER;
         pdss_bb_ss_pwm_duty_set(port, gl_bb_ss_pwm_duty[port]);
 
@@ -1765,14 +1817,15 @@ static void pdss_bb_enable_cb_t(cy_timer_id_t id, void *callbackContext)
          * Enable Master FCCM mode after a delay to avoid overshoot/undershoot 
          * because of negative inductor current. 
          */
-        (void)cy_sw_timer_start(context->ptrTimerContext, context,
-                        APP_HAL_GENERIC_TIMER, BB_FCCM_EN_DELAY_TIMER_MS, pdss_bb_fccm_en_cb_t);
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context,
+        		GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER), BB_FCCM_EN_DELAY_TIMER_MS, pdss_bb_fccm_en_cb_t);
 #endif /* BOOT_BB_FCCM_MODE_EN */
 
 #if BOOT_BB_STARTUP_WITH_LOAD_EN
     }
 #endif /* BOOT_BB_STARTUP_WITH_LOAD_EN */
 }
+#endif /* BOOT_BB_STARTUP_WITH_LOAD_EN */
 
 static void pdss_enable_bb(cy_stc_pdstack_context_t *context)
 {
@@ -1823,10 +1876,12 @@ static void pdss_enable_bb(cy_stc_pdstack_context_t *context)
     gl_pdss[port]->bbctrl_func_ctrl3 |= (PDSS_BBCTRL_FUNC_CTRL3_BBCTRL_FAULT_DET_CLR |
                 PDSS_BBCTRL_FUNC_CTRL3_BBCTRL_ILIM_FAULT_DET_CLR); 
 
+#if 0
     /* Do not turn on the Buck-Boost if Vbus-in voltage is not in safe range */
     pd_internal_vbus_in_discharge_on(port);
     while ((pd_hal_measure_vbus_in(port) > BB_VBUS_IN_STARTUP_VOLT));
     pd_internal_vbus_in_discharge_off(port);
+#endif
 
 #if BOOT_BB_FORCED_BUCK_EN
     /* 
@@ -1856,8 +1911,8 @@ static void pdss_enable_bb(cy_stc_pdstack_context_t *context)
      * If voltage is not reaching cut-off voltage, keep increasing duty cycle
      * of soft start PWM.
      */
-    (void)cy_sw_timer_start(context->ptrTimerContext, context,
-                                APP_HAL_GENERIC_TIMER, BB_SOFT_START_MON_TIMER_MS, pdss_bb_enable_cb_t);
+    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context,
+    		GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER), BB_SOFT_START_MON_TIMER_MS, pdss_bb_en_with_load_cb_t);
 
     /* Wait until startup reaches cut-off voltage */
     while(pd_bb_vbus_in_comp_status(port) == false)
@@ -1869,7 +1924,7 @@ static void pdss_enable_bb(cy_stc_pdstack_context_t *context)
     pd_bb_vbus_in_comp_dis(port);
 
     /* Disable timer used during BB enable */
-    cy_sw_timer_stop(context->ptrTimerContext, APP_HAL_GENERIC_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER));
 
     /* Reset soft start PWM duty */
     gl_bb_ss_pwm_duty[port] = BB_PWM_SS_DUTY_PER;
@@ -1896,7 +1951,7 @@ static void pdss_disable_bb(cy_stc_pdstack_context_t *context)
         PDSS_BBCTRL_FUNC_CTRL_BBCTRL_EN);
 
     /* Disable timer used during BB enable */
-    cy_sw_timer_stop(context->ptrTimerContext, APP_HAL_GENERIC_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER));
 
     /* 
      * EA_OUT is at VDDD initially.
@@ -1984,7 +2039,9 @@ static void pdss_phy_bb_init(uint8_t port)
     /* Disable all faults to BB except iLim. */
     pd->bbctrl_func_ctrl3 |= (PDSS_BBCTRL_FUNC_CTRL3_BBCTRL_FAULT_DET_DIS_VIN_UV |
         PDSS_BBCTRL_FUNC_CTRL3_BBCTRL_FAULT_DET_DIS_VIN_OV |
+#if !BOOT_BB_STARTUP_WITH_LOAD_EN
         PDSS_BBCTRL_FUNC_CTRL3_BBCTRL_FAULT_DET_DIS_VOUT_UV |
+#endif /* !BOOT_BB_STARTUP_WITH_LOAD_EN */
         PDSS_BBCTRL_FUNC_CTRL3_BBCTRL_FAULT_DET_DIS_VOUT_OV |
         PDSS_BBCTRL_FUNC_CTRL3_BBCTRL_FAULT_DET_DIS_OCP |
         PDSS_BBCTRL_FUNC_CTRL3_BBCTRL_FAULT_DET_DIS_SCP |
@@ -2084,18 +2141,14 @@ static void pdss_phy_bb_init(uint8_t port)
     CY_USBPD_REG_FIELD_UPDATE(pd->refgen_3_ctrl, PDSS_REFGEN_3_CTRL_SEL10, 0xFF);
 
     /* Power up EA block, configuration is done during CV enable */
-    regval = ((pd->bb_ea_0_ctrl &
+    pd->bb_ea_0_ctrl = ((pd->bb_ea_0_ctrl &
         ~(PDSS_BB_EA_0_CTRL_BB_EA_PD)) |
-        PDSS_BB_EA_0_CTRL_BB_EA_ISO_N);
-
-    /* Enable EA for default IDAC value of VSAFE_5V */
-    regval |= (PDSS_BB_EA_0_CTRL_BB_EA_EN_CV | 
-                         PDSS_BB_EA_0_CTRL_BB_EA_EN_CVAMP |
-                         PDSS_BB_EA_0_CTRL_BB_EA_EN_CCAMP |
-                         PDSS_BB_EA_0_CTRL_BB_EA_ISRC_EN |
-						 PDSS_BB_EA_0_CTRL_BB_EA_ISNK_EN);
-
-    pd->bb_ea_0_ctrl = regval;
+        PDSS_BB_EA_0_CTRL_BB_EA_ISO_N |
+        PDSS_BB_EA_0_CTRL_BB_EA_EN_CV | 
+        PDSS_BB_EA_0_CTRL_BB_EA_EN_CVAMP |
+        PDSS_BB_EA_0_CTRL_BB_EA_EN_CCAMP |
+        PDSS_BB_EA_0_CTRL_BB_EA_ISRC_EN |
+        PDSS_BB_EA_0_CTRL_BB_EA_ISNK_EN);
 
 #if BOOT_BB_FCCM_MODE_EN
     /* 
@@ -2292,8 +2345,8 @@ void typec_state_machine(cy_stc_pdstack_context_t *ptrPdStackContext)
 #if CC_BOOT_NB_CALL_EN
                 gl_pd_next_state[port] = IDLE;
                 gl_set_lock[port] = true;
-                (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
-                        PD_GENERIC_TIMER, VBUS_DISCHARGE_TIME, pd_fsm_cb_t);
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
+                        CY_PDSTACK_PD_GENERIC_TIMER, VBUS_DISCHARGE_TIME, pd_fsm_cb_t);
 #else    
                 Cy_SysLib_Delay(VBUS_DISCHARGE_TIME);
                 pd_internal_vbus_discharge_off(port);
@@ -2366,8 +2419,8 @@ void pd_state_machine(cy_stc_pdstack_context_t *ptrPdStackContext)
 #if CC_BOOT_NB_CALL_EN
         gl_pd_next_state[port] = CONNECTED;
         gl_set_lock[port] = true;
-        (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
-                                PD_GENERIC_TIMER, VBUS_DISCHARGE_TIME, pd_fsm_cb_t);
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
+        		CY_PDSTACK_GET_PD_TIMER_ID(ptrPdStackContext,CY_PDSTACK_PD_GENERIC_TIMER), VBUS_DISCHARGE_TIME, pd_fsm_cb_t);
         return;
 #else    
         Cy_SysLib_Delay(VBUS_DISCHARGE_TIME);
@@ -2401,8 +2454,8 @@ void pd_state_machine(cy_stc_pdstack_context_t *ptrPdStackContext)
 #if CC_BOOT_NB_CALL_EN
                 gl_pd_next_state[port] = PS_RDY;
                 gl_set_lock[port] = true;
-                (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
-                                                PD_GENERIC_TIMER, 50u, pd_fsm_cb_t);
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
+                		CY_PDSTACK_GET_PD_TIMER_ID(ptrPdStackContext,CY_PDSTACK_PD_GENERIC_TIMER), 50u, pd_fsm_cb_t);
                 return;
 #else    
                 Cy_SysLib_Delay(50);
@@ -2537,8 +2590,8 @@ void pd_state_machine(cy_stc_pdstack_context_t *ptrPdStackContext)
         /* Move to SEND_SRC_CAP state */
         gl_pd_state[port] = SEND_SRC_CAP;
 #if CC_BOOT_NB_CALL_EN
-        (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
-                                        PD_GENERIC_TIMER, 180u, NULL);
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
+        		CY_PDSTACK_GET_PD_TIMER_ID(ptrPdStackContext,CY_PDSTACK_PD_GENERIC_TIMER), 180u, NULL);
 #else    
         /*Start systick timer with timeout 180 ms*/
         start_systick_timer (180);
@@ -2547,11 +2600,11 @@ void pd_state_machine(cy_stc_pdstack_context_t *ptrPdStackContext)
     else if (gl_pd_state[port] == SEND_SRC_CAP)
     {
 #if CC_BOOT_NB_CALL_EN
-        if(cy_sw_timer_is_running (ptrPdStackContext->ptrTimerContext, PD_GENERIC_TIMER) == false)
+        if(CALL_MAP(Cy_PdUtils_SwTimer_IsRunning) (ptrPdStackContext->ptrTimerContext, CY_PDSTACK_GET_PD_TIMER_ID(ptrPdStackContext,CY_PDSTACK_PD_GENERIC_TIMER)) == false)
         {
             pd_send_data_msg (port, CY_PDSTACK_DATA_MSG_SRC_CAP, src_pdo, 1);
-            (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
-                                            PD_GENERIC_TIMER, 180u, NULL);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
+            		CY_PDSTACK_GET_PD_TIMER_ID(ptrPdStackContext,CY_PDSTACK_PD_GENERIC_TIMER), 180u, NULL);
         }
 #else    
         /* When systick timer expires, Send SRC_CAP Message with 5V pdo and restart the timer with 180ms.
@@ -2570,11 +2623,11 @@ void pd_state_machine(cy_stc_pdstack_context_t *ptrPdStackContext)
 cy_en_usbpd_status_t Cy_PD_HAL_Vconn_Enable(uint8_t port, uint8_t channel)
 {
 
-#if (defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_PMG1S3) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_PMG1S3) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
     PPDSS_REGS_T pd = gl_pdss[port];
     uint32_t regVal;
 
-#if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
     PPDSS_TRIMS_REGS_T trimRegs = gl_pdss_trims[port];
      /*
      * CDT 360166:
@@ -2608,7 +2661,7 @@ cy_en_usbpd_status_t Cy_PD_HAL_Vconn_Enable(uint8_t port, uint8_t channel)
         pd->vconn20_ctrl |= PDSS_VCONN20_CTRL_EN_OCP_CC2;
     }
 
-#endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1)) */
+#endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1)) */
 
     /* Turn on the VConn switch. */
     if (channel == CY_PD_CC_CHANNEL_1)
@@ -2644,7 +2697,7 @@ cy_en_usbpd_status_t Cy_PD_HAL_Vconn_Enable(uint8_t port, uint8_t channel)
         PDSS_VCONN20_PUMP_EN_1_CTRL_SEL_CC1_OVP | PDSS_VCONN20_PUMP_EN_1_CTRL_SEL_CC2_OVP;
     pd->vconn20_pump_en_1_ctrl = regVal;
 
-#if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
      /* 
      * Turn ON & enable the slow charging of 20vconn switch 
      * for inrush current control.
@@ -2656,8 +2709,8 @@ cy_en_usbpd_status_t Cy_PD_HAL_Vconn_Enable(uint8_t port, uint8_t channel)
         PDSS_VCONN20_CTRL_T_VCONN_POS));
 
     /* Start firmware VCONN OCP and SCP handling after VCONN switch output is stable */   
-#endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1)) */
-#endif /* (defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_PMG1S3) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1)) */
+#endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1)) */
+#endif /* (defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_PMG1S3) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1)) */
 
     return CY_USBPD_STAT_SUCCESS;
 }
@@ -2666,5 +2719,9 @@ bool Cy_PD_HAL_Get_Active_CC_Channel(uint8_t port)
 {
     return gl_active_channel[port];
 }
-
+#endif /* CC_BOOT */
+void pd_set_vddd_5v(uint8_t port)
+{
+	gl_pdss[port]->bb_40vreg_ctrl &= (~PDSS_BB_40VREG_CTRL_BB_40VREG_T_VREG_3P3_MASK);
+}
 #endif /* CCG_BOOT */

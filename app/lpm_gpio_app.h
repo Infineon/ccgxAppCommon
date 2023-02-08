@@ -1,20 +1,17 @@
-/***************************************************************************//**
-* \file lpm_gpio_app.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   lpm_gpio_app.h
+* \version 2.0
 *
-* This is GPIO based LPM header file 
+* Description: GPIO based LPM interface header file
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2022-2023 Cypress Semiconductor $
 *******************************************************************************/
-
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -26,7 +23,10 @@
 /*****************************************************************************
  * Global Function Declarations
  *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief This function initializes the LPM Functionality over GPIO.
  * @param port_pin Chip Enable Pin.
@@ -64,7 +64,8 @@ void lpm_gpio_clr_intr(void);
  * @return gpio status
  */
 bool lpm_gpio_read(void);
-    
+
+/** \} group_ccgxAppCommon_functions */
 #endif /* LPM_GPIO_APP_H_ */
 
 /** \} group_ccgxAppCommon */

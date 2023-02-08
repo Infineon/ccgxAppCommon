@@ -1,42 +1,15 @@
-/**
- * @file cc_boot.h
- *
- * @brief @{Definitions for CCG CC bootloader.@}
- */
-
-/*
- *
- * Copyright(2014-2020), Cypress Semiconductor Corporation or a subsidiary of 
- * Cypress Semiconductor Corporation. All rights reserved. 
- * 
- * This software, including source code, documentation and related materials 
- * ("Software"), is owned by Cypress Semiconductor Corporation or one of its 
- * subsidiaries ("Cypress") and is protected by and subject to worldwide patent 
- * protection (United States and foreign), United States copyright laws and 
- * international treaty provisions. Therefore, you may use this Software only 
- * as provided in the license agreement accompanying the software package from
- * which you obtained this Software ("EULA"). If no EULA applies, Cypress 
- * hereby grants you a personal, nonexclusive, non-transferable license to 
- * copy, modify, and compile the Software source code solely for use in 
- * connection with Cypress's integrated circuit products. Any reproduction, 
- * modification, translation, compilation, or representation of this Software 
- * except as specified above is prohibited without the express written 
- * permission of Cypress. 
- * 
- * Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. 
- * Cypress reserves the right to make changes to the Software without notice.
- * Cypress does not assume any liability arising out of the application or use
- * of the Software or any product or circuit described in the Software. Cypress
- * does not authorize its products for use in any products where a malfunction
- * or failure of the Cypress product may reasonably be expected to result in
- * significant property damage, injury or death ("High Risk Product"). By 
- * including Cypress's product in a High Risk Product, the manufacturer of such
- * system or application assumes all risk of such use and in doing so agrees to
- * indemnify Cypress against all liability. 
- *
- ******************************************************************************/
+/******************************************************************************
+* File Name:   cc_boot.h
+* \version 2.0
+*
+* Description: Definitions for CCG CC bootloader
+*
+* Related Document: See README.md
+*
+*
+*******************************************************************************
+* $ Copyright 2022-2023 Cypress Semiconductor $
+*******************************************************************************/
 
 #ifndef _CC_BOOT_H_
 #define _CC_BOOT_H_
@@ -47,27 +20,35 @@
 /*****************************************************************************
 * MACRO Definition
 *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 /* VBUS discharge time in ms */
 #define VBUS_DISCHARGE_TIME             (300)
-    
+/** \} group_ccgxAppCommon_macros */
 /*****************************************************************************
  * Enumerated Data Definition
  *****************************************************************************/
+/** \addtogroup group_ccgxAppCommon_enums
+* \{
+*/
 
 typedef enum PD_STATE {
     IDLE,
     CONNECTED,
     SEND_SRC_CAP,
     CONTRACT_ESTD,
-#if CC_BOOT_NB_CALL_EN
     PS_RDY,
-#endif /* CC_BOOT_NB_CALL_EN */    
 }pd_state_t;
-
+/** \} group_ccgxAppCommon_enums */
 /*****************************************************************************
  * Global Function Declaration
  *****************************************************************************/
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 #ifdef CCG_BOOT
 /**
  * @brief This function initializes the PD phy registers.
@@ -158,8 +139,27 @@ void vbus_set_vsafe(uint8_t port);
  */
 void turn_off_vbus(cy_stc_pdstack_context_t *context);
 
+/**
+ * @brief This function enables the 5V VDDD.
+ * @param port Port ID
+ * @return None
+ */
+void pd_set_vddd_5v(uint8_t port);
+
+/**
+ * @brief This function enables VCONN
+ * @param port Port ID
+ * @param channel CC1/CC2
+*/
 cy_en_usbpd_status_t Cy_PD_HAL_Vconn_Enable(uint8_t port, uint8_t channel);
 
+/**
+ * @brief This Functions retrieves the active CC Channel based on attach
+ * 
+ * @param port 
+ * @return true 
+ * @return false 
+ */
 bool Cy_PD_HAL_Get_Active_CC_Channel(uint8_t port);
 
 #endif /* _CC_BOOT_H_ */

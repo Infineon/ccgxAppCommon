@@ -1,33 +1,30 @@
-/***************************************************************************//**
-* \file vdm.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   vdm.c
+* \version 2.0
 *
-* Vendor Defined Message (VDM) handler source file.
+* Description: Vendor Defined Message (VDM) handler source file.
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
-
 #include "config.h"
-#include <cy_sw_timer.h>
+#include <cy_pdutils_sw_timer.h>
 #include <vdm.h>
 #include "cy_pdstack_common.h"
 #include <app.h>
-#include <vdm_task_mngr.h>
+#include <cy_pdaltmode_vdm_task.h>
 #if (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP)
-#include <alt_modes_mngr.h>
+#include <cy_pdaltmode_mngr.h>
 #endif /* (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP) */
 #if DP_GPIO_CONFIG_SELECT
-#include <dp_sid.h>
+#include "cy_pdaltmode_dp_sid.h"
 #endif /* DP_GPIO_CONFIG_SELECT */
 
 #if ((TBT_DFP_SUPP) || (TBT_UFP_SUPP))
-#include <intel_vid.h>
+#include <cy_pdaltmode_intel_vid.h>
 #endif /* ((TBT_DFP_SUPP) || (TBT_UFP_SUPP)) */
 
 #if CCG_HPI_ENABLE
@@ -44,25 +41,10 @@
 #endif /* CCG_LOAD_SHARING_ENABLE */
 #endif /* (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_CCG7S) */
 #include "cy_usbpd_config_table.h"
+#include "srom.h"
 #include "uvdm.h"
 
-/* Stores Discover ID response VDO count */
-static uint8_t  gl_vdm_id_vdo_cnt[NO_OF_TYPEC_PORTS];
-
-/* Stores Discover SVID response VDO count */
-static uint8_t  gl_vdm_svid_vdo_cnt[NO_OF_TYPEC_PORTS];
-
-/* Stores Discover Modes response VDO count */
-static uint16_t gl_vdm_mode_data_len[NO_OF_TYPEC_PORTS];
-
-/* Stores pointer to Discover ID response data */
-static cy_pd_pd_do_t *gl_vdm_id_vdo_p[NO_OF_TYPEC_PORTS];
-
-/* Stores pointer to Discover SVID response data */
-static cy_pd_pd_do_t *gl_vdm_svid_vdo_p[NO_OF_TYPEC_PORTS];
-
-/* Stores pointer to Discover Modes response data */
-static uint8_t *gl_vdm_mode_data_p[NO_OF_TYPEC_PORTS];
+cy_stc_pdaltmode_vdm_info_config_t vdmInfo[NO_OF_TYPEC_PORTS];
 
 #if (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_CCG7S))
 /*
@@ -115,59 +97,112 @@ flash_cbk_t uvdm_nb_flash_write_cb = NULL;
 /* Store VDM information from the config table in the RAM variables. */
 void vdm_data_init(cy_stc_pdstack_context_t * context)
 {
+    cy_stc_pdaltmode_cfg_settings_t *altcfg = pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext);
+    cy_stc_pdaltmode_context_t * ptrAltModeContext = context->ptrAltModeContext;
+    uint8_t * auto_offset = (uint8_t *)get_auto_config(context->ptrUsbPdContext);
+    uint32_t * offset;
+    uint32_t temp;
     uint16_t size = 0;
-    uint8_t port = context->port;
+    uint8_t i;
+
+    vdmInfo[context->port].dIdLength = altcfg->disc_id_len;
+    if(altcfg->disc_id_len != 0x00u)
+    {
+        for(i = 0; i < (((altcfg->disc_id_len)/4) - 1); i++)
+        {
+            offset = (uint32_t *)(auto_offset + (altcfg->disc_id_offset + (4 * (i+1))));
+            temp = (uint32_t)(*offset);
+            vdmInfo[context->port].discId[i] = temp;
+        }
+    }
+
+    vdmInfo[context->port].sVidLength = altcfg->disc_svid_len;
+    if(altcfg->disc_svid_len != 0x00u)
+    {
+        for(uint8_t i=0; i < ((altcfg->disc_svid_len/4) - 1); i++)
+        {
+            offset = (uint32_t *)(auto_offset + (altcfg-> disc_svid_offset + (4 * (i+1))));
+            temp = (uint32_t)(*offset);
+            vdmInfo[context->port].sVid[i] = temp;
+        }
+    }
+
+    vdmInfo[context->port].discMode[0].disModeLength = altcfg->disc_mode_len;
+    if(altcfg->disc_mode_len != 0x00u)
+    {
+        for(uint8_t i=0; i < ((altcfg->disc_mode_len/4) - 1); i++)
+        {
+            offset = (uint32_t *)(auto_offset + (altcfg-> disc_mode_offset + (4 * (i+1))));
+            temp = (uint32_t)(*offset);
+            vdmInfo[context->port].discMode[0].modeDataObj[i] = temp;
+        }
+
+        vdmInfo[context->port].discMode[0].dataObjsVid = ((vdmInfo[context->port].discMode[0].modeDataObj[0] >> 16) & 0xFFFFu);
+    }
+
+    ptrAltModeContext->vdmInfoConfig = &vdmInfo[context->port];
 
     /* Calculate the number of VDOs in the D_ID response. */
-    size = pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext)->disc_id_len;
-
-    /* Subtract 4 bytes for the header and reduce to number of VDOs. */
-    if (size > 4u)
-    {
-        gl_vdm_id_vdo_cnt[port] = (uint8_t)((size - 4u) >> 2u);
-    }
-    else
-    {
-        gl_vdm_id_vdo_cnt[port] = 0;
-    }
-
-    /* Update the D_ID response pointer. */
-    gl_vdm_id_vdo_p[port] = (cy_pd_pd_do_t *) (((const uint8_t *)get_wireless_config(context->ptrUsbPdContext)) + (pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext)-> disc_id_offset + 4 ));
-
-#if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-    /* Calculate the number of VDOs in the D_SVID response. */
-    size = pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext)->disc_svid_len;
+    size = ptrAltModeContext->vdmInfoConfig->dIdLength;
     /* Subtract 4 bytes for the header and reduce to number of VDOs. */
     if (size > 4)
     {
-        gl_vdm_svid_vdo_cnt[port] = (uint8_t)((size - 4) >> 2);
-
-        gl_vdm_svid_vdo_p[port] = (cy_pd_pd_do_t *)(((const uint8_t *)get_auto_config(context->ptrUsbPdContext)) +
-            (pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext)->disc_svid_offset + 4));
-
-
-        /* Store the D_MODE response length from configuration table. */
-        gl_vdm_mode_data_len[port] = pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext)->disc_mode_len;
-
-        /* Store pointer to the D_MODE responses. */
-        gl_vdm_mode_data_p[port] = (cy_pd_pd_do_t *)(((const uint8_t *)get_auto_config(context->ptrUsbPdContext)) +
-            (pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext)-> disc_mode_offset));
+        ptrAltModeContext->vdmIdVdoCnt = (uint8_t)((size - 4) >> 2);
     }
     else
-#endif /* ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP)) */
     {
-        gl_vdm_svid_vdo_cnt[port] = 0;
-        gl_vdm_mode_data_len[port] = 0;
+        ptrAltModeContext->vdmIdVdoCnt = 0;
+    }
+
+    /* Copy the actual Discover Identity response. */
+    memcpy ((uint8_t *)ptrAltModeContext->vdmIdVdoResp, (const uint8_t *)ptrAltModeContext->vdmInfoConfig->discId,
+            ptrAltModeContext->vdmIdVdoCnt * 4u);
+
+    /* Update the vendor and product IDs from the configuration data. */
+    ptrAltModeContext->vdmIdVdoResp[1].std_id_hdr.usbVid = context->ptrPortCfg->mfgVid;
+    ptrAltModeContext->vdmIdVdoResp[3].std_prod_vdo.usbPid = context->ptrPortCfg->mfgPid;
+
+    /* Update the D_ID response pointer. */
+    ptrAltModeContext->vdmIdVdoP = (cy_pd_pd_do_t *)(ptrAltModeContext->vdmIdVdoResp);
+
+    /* Calculate the number of VDOs in the D_SVID response. */
+    size = ptrAltModeContext->vdmInfoConfig->sVidLength;
+
+    /* Subtract 4 bytes for the header and reduce to number of VDOs. */
+    if (size > 4)
+    {
+        ptrAltModeContext->vdmSvidVdoCnt = (uint8_t)((size - 4) >> 2);
+
+        /* Update the D_SVID response pointer. */
+        ptrAltModeContext->vdmSvidVdoP = (cy_pd_pd_do_t *)((uint8_t *)(ptrAltModeContext->vdmInfoConfig->sVid));
+
+#if LEGACY_CFG_TABLE_SUPPORT
+        /* Store the D_MODE response length from configuration table. */
+        ptrAltModeContext->vdmModeDataLen = pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext)->disc_mode_len;
+
+        /* Store pointer to the D_MODE responses. */
+        ptrAltModeContext->vdmModeDataP = (uint8_t *)(((const uint8_t *)get_auto_config(context->ptrUsbPdContext)) +
+                (pd_get_ptr_base_alt_tbl(context->ptrUsbPdContext)-> disc_mode_offset));
+
+#endif /* LEGACY_CFG_TABLE_SUPPORT */
+    }
+    else
+    {
+        ptrAltModeContext->vdmSvidVdoCnt = 0;
+#if LEGACY_CFG_TABLE_SUPPORT
+        ptrAltModeContext->vdmModeDataLen = 0;
+#endif /* LEGACY_CFG_TABLE_SUPPORT */
     }
 }
 
 void vdm_update_svid_resp(cy_stc_pdstack_context_t * context, uint8_t svid_vdo_cnt, uint8_t *svid_vdo_p)
 {
     uint8_t port = context->port;
+    cy_stc_pdaltmode_context_t * ptrAltModeContext = context->ptrAltModeContext;
     if(port < NO_OF_TYPEC_PORTS)
     {
-        gl_vdm_svid_vdo_cnt[port]  = svid_vdo_cnt;
-        gl_vdm_svid_vdo_p[port]    = (cy_pd_pd_do_t *)svid_vdo_p;
+        ptrAltModeContext->vdmSvidVdoCnt  = svid_vdo_cnt;
+        ptrAltModeContext->vdmSvidVdoP    = (cy_pd_pd_do_t *)svid_vdo_p;
     }
 }
 
@@ -175,15 +210,18 @@ void vdm_update_data(cy_stc_pdstack_context_t * context, uint8_t id_vdo_cnt, uin
         uint8_t svid_vdo_cnt, uint8_t *svid_vdo_p, uint16_t mode_resp_len, uint8_t *mode_resp_p)
 {
     uint8_t port = context->port;
+    cy_stc_pdaltmode_context_t * ptrAltModeContext = context->ptrAltModeContext;
 
     if (port < NO_OF_TYPEC_PORTS)
     {
-        gl_vdm_id_vdo_cnt[port]    = id_vdo_cnt;
-        gl_vdm_id_vdo_p[port]      = (cy_pd_pd_do_t *)id_vdo_p;
-        gl_vdm_svid_vdo_cnt[port]  = svid_vdo_cnt;
-        gl_vdm_svid_vdo_p[port]    = (cy_pd_pd_do_t *)svid_vdo_p;
-        gl_vdm_mode_data_len[port] = mode_resp_len;
-        gl_vdm_mode_data_p[port]   = mode_resp_p;
+        ptrAltModeContext->vdmIdVdoCnt    = id_vdo_cnt;
+        ptrAltModeContext->vdmIdVdoP      = (cy_pd_pd_do_t *)id_vdo_p;
+        ptrAltModeContext->vdmSvidVdoCnt  = svid_vdo_cnt;
+        ptrAltModeContext->vdmSvidVdoP    = (cy_pd_pd_do_t *)svid_vdo_p;
+#if LEGACY_CFG_TABLE_SUPPORT
+        ptrAltModeContext->vdmModeDataLen = mode_resp_len;
+        ptrAltModeContext->vdmModeDataP   = mode_resp_p;
+#endif /* LEGACY_CFG_TABLE_SUPPORT */
     }
 }
 
@@ -191,12 +229,12 @@ bool get_modes_vdo_info(cy_stc_pdstack_context_t * context, uint16_t svid, cy_pd
 {
     uint8_t d_mode_resp_size_total;
     uint8_t d_mode_resp_size;
-    uint8_t port = context->port;
     cy_pd_pd_do_t *header;
-    uint8_t* resp_p = gl_vdm_mode_data_p[port];
+    cy_stc_pdaltmode_context_t * ptrAltModeContext = context->ptrAltModeContext;
+    uint8_t* resp_p = ptrAltModeContext->vdmModeDataP;
 
     /* Parse all responses based on SVID */
-    d_mode_resp_size_total = gl_vdm_mode_data_len[port];
+    d_mode_resp_size_total = ptrAltModeContext->vdmModeDataLen;
 
     /* If size is less than or equal to 4, return NACK. */
     if (d_mode_resp_size_total <= 4u)
@@ -229,7 +267,8 @@ bool get_modes_vdo_info(cy_stc_pdstack_context_t * context, uint16_t svid, cy_pd
 
 cy_pd_pd_do_t* get_gl_vdm_id(cy_stc_pdstack_context_t * context)
 {
-    return gl_vdm_id_vdo_p[context->port];
+    cy_stc_pdaltmode_context_t * ptrAltModeContext = context->ptrAltModeContext;
+    return (ptrAltModeContext->vdmIdVdoP);
 }
 
 void vdm_assign_port_num(cy_stc_pdstack_context_t * context)
@@ -247,7 +286,7 @@ void vdm_assign_port_num(cy_stc_pdstack_context_t * context)
 static void vdm_disc_id_resp_append_port_num(cy_stc_pdstack_context_t * context)
 {
 
-    app_status_t* app_stat = app_get_status(context->port);
+    cy_stc_pdaltmode_app_status_t* app_stat = &(((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus);
 
     app_stat->vdmResp.respBuf[CY_PD_PRODUCT_TYPE_VDO_1_IDX].dfp_vdo.portNum
         = gl_vdm_port_num;
@@ -256,8 +295,10 @@ static void vdm_disc_id_resp_append_port_num(cy_stc_pdstack_context_t * context)
 
 void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet_t *vdm, cy_pdstack_vdm_resp_cbk_t vdm_resp_handler)
 {
-    app_status_t* app_stat = app_get_status(context->port);
-    uint8_t port = context->port;
+#if (CCG_HPI_PD_ENABLE || FLASHING_MODE_PD_ENABLE)
+    cy_stc_pdaltmode_app_status_t* app_stat = &(((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus);
+#endif /* CCG_HPI_PD_ENABLE || FLASHING_MODE_PD_ENABLE */
+    cy_stc_pdaltmode_context_t* ptrAltModeContext = context->ptrAltModeContext;;
 
     cy_pd_pd_do_t* dobj = NULL;
     uint8_t i, count = 0u;
@@ -282,7 +323,7 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
 #endif /* CY_PD_REV3_ENABLE */
 
     /* By Default assume we will respond */
-    app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_READY;
+    ptrAltModeContext->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_READY;
 
     if (
             (vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.vdmType == CY_PDSTACK_VDM_TYPE_STRUCTURED) &&
@@ -290,21 +331,21 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
        )
     {
         /* Copy received VDM Header data to VDM response Header*/
-        app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].val = vdm->dat[CY_PD_VDM_HEADER_IDX].val;
-
+        ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].val = vdm->dat[CY_PD_VDM_HEADER_IDX].val;
 #if CY_PD_REV3_ENABLE
         /* Use the minimum VDM version from among the partner's revision and the live revision. */
-        app_stat->vdm_version = CY_USBPD_GET_MIN (app_stat->vdm_version, vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.stVer);
+        ptrAltModeContext->appStatus.vdm_version = CY_USBPD_GET_MIN (ptrAltModeContext->appStatus.vdm_version,
+                vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.stVer);
 #endif /* CY_PD_REV3_ENABLE */
 
         /* Set a NAK response by default. */
-        app_stat->vdmResp.doCount = 1 ;
-        app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = CY_PDSTACK_CMD_TYPE_RESP_NAK;
+        ptrAltModeContext->appStatus.vdmResp.doCount = 1u;
+        ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = CY_PDSTACK_CMD_TYPE_RESP_NAK;
 
 #if MUX_DELAY_EN
         /* Save pointer to VDM response handler and set appropriate flag */
-        app_stat->is_vdm_pending = true;
-        app_stat->vdm_resp_cbk = vdm_resp_handler;
+        ptrAltModeContext->appStatus.is_vdm_pending = true;
+        ptrAltModeContext->appStatus.vdm_resp_cbk = vdm_resp_handler;
 #endif /* MUX_DELAY_EN */
 
         if ((context->dpmConfig.curPortType == CY_PD_PRT_TYPE_UFP) || (pd3_live))
@@ -316,14 +357,14 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                 switch(vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmd)
                 {
                     case CY_PDSTACK_VDM_CMD_DSC_IDENTITY:
-                        count = gl_vdm_id_vdo_cnt[port];
-                        if((vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.svid ==  STD_SVID) && (count != 0u))
+                        count = ptrAltModeContext->vdmIdVdoCnt;
+                        if((vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.svid == STD_SVID) && (count != 0u))
                         {
-                            app_stat->vdmResp.doCount = count;
-                            dobj = gl_vdm_id_vdo_p[port];
+                            ptrAltModeContext->appStatus.vdmResp.doCount = count;
+                            dobj = ptrAltModeContext->vdmIdVdoP;
                             for(i = 0 ; i < count; i++)
                             {
-                                app_stat->vdmResp.respBuf[i] = dobj[i];
+                                ptrAltModeContext->appStatus.vdmResp.respBuf[i] = dobj[i];
                             }
 
 
@@ -341,9 +382,9 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
 
 #if CY_PD_REV3_ENABLE
                             /* Mask Product Type (DFP) field when VDM version is 1.0. */
-                            if (app_stat->vdm_version == 0u)
+                            if(ptrAltModeContext->appStatus.vdm_version == 0u)
                             {
-                                cy_pd_pd_do_t id_hdr = app_stat->vdmResp.respBuf[VDO_START_IDX];
+                                cy_pd_pd_do_t id_hdr = ptrAltModeContext->appStatus.vdmResp.respBuf[VDO_START_IDX];
                                 uint8_t max_do_cnt = 4;
 
                                 /* Make sure to clear fields that are reserved under PD 2.0. */
@@ -364,34 +405,34 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
 
                                 /* Ensure that the size of the response is limited to what is valid based
                                  * on the ID header. */
-                                if (app_stat->vdmResp.doCount > max_do_cnt)
+                                if(ptrAltModeContext->appStatus.vdmResp.doCount > max_do_cnt)
                                 {
-                                    app_stat->vdmResp.doCount = max_do_cnt;
+                                    ptrAltModeContext->appStatus.vdmResp.doCount = max_do_cnt;
                                 }
-                                app_stat->vdmResp.respBuf[VDO_START_IDX] = id_hdr;
+                                ptrAltModeContext->appStatus.vdmResp.respBuf[VDO_START_IDX] = id_hdr;
                             }
 #else /* !CY_PD_REV3_ENABLE */
                             app_stat->vdmResp.respBuf[VDO_START_IDX].std_id_hdr.rsvd1 = 0;
 #endif /* CY_PD_REV3_ENABLE */
 
                             /* Set VDM Response ACKed */
-                            app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = (uint8_t)CY_PDSTACK_CMD_TYPE_RESP_ACK;
+                            ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = (uint8_t)CY_PDSTACK_CMD_TYPE_RESP_ACK;
                         }
                         break;
 
 #if (!CCG_BACKUP_FIRMWARE)
                     case CY_PDSTACK_VDM_CMD_DSC_SVIDS:
-                        count = gl_vdm_svid_vdo_cnt[port];
+                        count = ptrAltModeContext->vdmSvidVdoCnt;
                         if((vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.svid == STD_SVID) && (count != 0u))
                         {
-                            app_stat->vdmResp.doCount = count;
-                            dobj = gl_vdm_svid_vdo_p[port];
+                            ptrAltModeContext->appStatus.vdmResp.doCount = count;
+                            dobj = ptrAltModeContext->vdmSvidVdoP;
                             for(i = 0 ; i < count; i++)
                             {
-                                app_stat->vdmResp.respBuf[i] = dobj[i];
+                                ptrAltModeContext->appStatus.vdmResp.respBuf[i] = dobj[i];
                             }
                             /* Set VDM Response ACKed */
-                            app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = (uint8_t)CY_PDSTACK_CMD_TYPE_RESP_ACK;
+                            ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = (uint8_t)CY_PDSTACK_CMD_TYPE_RESP_ACK;
                         }
                         break;
 
@@ -400,10 +441,10 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                             &dobj, &count);
                         if (eval_rslt == true)
                         {
-                            app_stat->vdmResp.doCount = count;
+                            ptrAltModeContext->appStatus.vdmResp.doCount = count;
                             for (i = 0; i < count; i++)
                             {
-                                app_stat->vdmResp.respBuf[i] = dobj[i];
+                                ptrAltModeContext->appStatus.vdmResp.respBuf[i] = dobj[i];
                             }
 #if DP_GPIO_CONFIG_SELECT
                             /*
@@ -412,7 +453,7 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                              */
                             if (vdm->dat[VDM_HEADER_IDX].std_vdm_hdr.svid == DP_SVID)
                             {
-                                app_stat->vdmResp.respBuf[1].std_dp_vdo.dfpDPin = dp_sink_get_pin_config ();
+                                ptrAltModeContext->appStatus.vdmResp.respBuf[1].std_dp_vdo.dfpDPin = dp_sink_get_pin_config ();
                             }
 #endif /* DP_GPIO_CONFIG_SELECT */
 
@@ -425,13 +466,13 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                                 if (vdm->dat[VDM_HEADER_IDX].std_vdm_hdr.svid == INTEL_VID)
                                 {
                                     /* Set the VPro enable bit in the Mode VDO. */
-                                    app_stat->vdmResp.respBuf[1].val |= TBT_MODE_VPRO_AVAIL;
+                                    ptrAltModeContext->appStatus.vdmResp.respBuf[1].val |= TBT_MODE_VPRO_AVAIL;
                                 }
                             }
 #endif /* ((TBT_UFP_SUPP) && (VPRO_DOCK_SUPPORT_ENABLE)) */
 
                             /* Set VDM Response ACKed */
-                            app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = (uint8_t)CY_PDSTACK_CMD_TYPE_RESP_ACK;
+                            ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = (uint8_t)CY_PDSTACK_CMD_TYPE_RESP_ACK;
                         }
                         break;
 
@@ -492,7 +533,7 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                                     app_event_handler(port, APP_EVT_CUST_ALT_MODE_CHANGED, NULL);
 
                                     /* Stop apple mode attention timer */
-                                    (void)cy_sw_timer_stop(port, ATTENTION_TIMER);
+                                    (void)CALL_MAP(Cy_PdUtils_SwTimer_Stop)(port, ATTENTION_TIMER);
                                }
                                 else
                                 {
@@ -516,7 +557,7 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                                     app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = CY_PDSTACK_CMD_TYPE_RESP_ACK;
 
                                     /* Stop apple mode attention timer */
-                                    (void)cy_sw_timer_stop(port, ATTENTION_TIMER);
+                                    (void)CALL_MAP(Cy_PdUtils_SwTimer_Stop)(port, ATTENTION_TIMER);
                                 }
                                 else
                                 {
@@ -531,7 +572,7 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
 
                     case CY_PDSTACK_VDM_CMD_ATTENTION:
                         /* Ignore Attention VDM */
-                        app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_REQ;
+                        ptrAltModeContext->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_REQ;
                         break;
 
                     default:
@@ -549,10 +590,10 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                 {
 #if UFP_ALT_MODE_SUPP
                     /* If DFP cmd processed success */
-                    if (eval_rec_vdm(port, vdm))
+                    if (Cy_PdAltMode_Mngr_EvalRecVdm((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext), vdm))
                     {
                         /* Set VDM Response ACKed */
-                        app_stat->vdmResp.respBuf[VDM_HEADER_IDX].std_vdm_hdr.cmdType = CMD_TYPE_RESP_ACK;
+                        ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = CY_PDSTACK_CMD_TYPE_RESP_ACK;
                     }
                     else
 #endif /* UFP_ALT_MODE_SUPP */
@@ -561,7 +602,7 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                         if (hpi_is_vdm_ec_ctrl_enabled(context))
                         {
                             /* Let the EC respond if EC VDM response bit is set. */
-                            app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_FROM_EC;
+                            ptrAltModeContext->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_FROM_EC;
                         }
 #endif /* ((CCG_HPI_PD_ENABLE) && (!CCG_HPI_PD_CMD_DISABLE)) */
                     }
@@ -571,29 +612,29 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
             else
             {
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-                if (gl_dpm_port_type[port] != PRT_TYPE_UFP)
+                if (context->dpmConfig.curPortType != CY_PD_PRT_TYPE_UFP)
                 {
-                    if ((vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmd == VDM_CMD_ENTER_MODE) ||
-                            (vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmd == VDM_CMD_EXIT_MODE))
+                    if ((vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmd == CY_PDSTACK_VDM_CMD_ENTER_MODE) ||
+                            (vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmd == CY_PDSTACK_VDM_CMD_EXIT_MODE))
                     {
-                        app_stat->vdmResp.noResp = VDM_AMS_RESP_NOT_REQ;
+                        ptrAltModeContext->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_READY;
                     }
                     else
                     {
                         if (vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmd == CY_PDSTACK_VDM_CMD_ATTENTION)
                         {
-                            app_stat->vdmResp.noResp = VDM_AMS_RESP_NOT_REQ;
+                            ptrAltModeContext->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_REQ;
                         }
-                        eval_rec_vdm(port, vdm);
+                        Cy_PdAltMode_Mngr_EvalRecVdm((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext), vdm);
                     }
                 }
                 else
                 {
                     /* If received cmd processed success */
-                    if (eval_rec_vdm(port, vdm) == true)
+                    if (Cy_PdAltMode_Mngr_EvalRecVdm((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext), vdm) == true)
                     {
                         /* Set VDM Response ACKed */
-                        app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = CY_PDSTACK_CMD_TYPE_RESP_ACK;
+                        ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType = CY_PDSTACK_CMD_TYPE_RESP_ACK;
                     }
 #if CCG_HPI_PD_ENABLE
                     else
@@ -619,18 +660,18 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
             if ((vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmd == CY_PDSTACK_VDM_CMD_ATTENTION) && (app_stat->vdm_task_en == true))
             {
                 /* evaluate attention VDM */
-                eval_rec_vdm(port, vdm);
+                Cy_PdAltMode_Mngr_EvalRecVdm((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext), vdm);
             }
 #endif /* DFP_ALT_MODE_SUPP */
             if(vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmd!=CY_PDSTACK_VDM_CMD_DSC_IDENTITY)
             {
                 /* No response to VDMs received on PD 2.0 connection except Discover Identity command while in DFP state. */
-                app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_REQ;
+                ptrAltModeContext->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_REQ;
             }
         }
 
         /* Set the VDM version for the response. */
-        app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.stVer = app_stat->vdm_version;
+        ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.stVer = ptrAltModeContext->appStatus.vdm_version;
     }
     else
     {
@@ -638,7 +679,7 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
         /* Pass the VDM to U_VDM handler */
         /* QAC suppression 0310: &vdm->hdr points to uint32_t and is expected to be 4 byte aligned */
         /* QAC suppression 0311: vdm->hdr is used only for readonly purposes inside the function. */
-        response_state = uvdm_handle_cmd (context, (uint32_t *)(&vdm->hdr), &dobj, &count,  /* PRQA S 0310, 0311 */
+        response_state = uvdm_handle_cmd(context, (uint32_t *)(&vdm->hdr), &dobj, &count,  /* PRQA S 0310, 0311 */
             uvdm_nb_flash_write_cb);
         /* Response is ready. Notify PD. */
         if (response_state == UVDM_HANDLED_RESPONSE_READY)
@@ -668,11 +709,11 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
             if (vdm->dat[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.svid ==
                     pd_get_ptr_app_tbl(context->ptrUsbPdContext)->flashing_vid)
             {
-                app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].val =
+                ((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].val =
                     vdm->dat[CY_PD_VDM_HEADER_IDX].val;
-                app_stat->vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].ustd_vdm_hdr.cmdType
+                ((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].ustd_vdm_hdr.cmdType
                     = CY_PDSTACK_CMD_TYPE_RESP_NAK;
-                app_stat->vdmResp.doCount = 1;
+                ((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp.doCount = 1;
             }
             else
             {
@@ -685,17 +726,17 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                     &dobj, &count);
                 if (response_state == UVDM_HANDLED_RESPONSE_READY)
                 {
-                    app_stat->vdmResp.doCount = count;
+                    ((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp.doCount = count;
                     for (i = 0; i < count; i++)
                     {
-                        app_stat->vdmResp.respBuf[i] = dobj[i];
+                        ((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp.respBuf[i] = dobj[i];
                     }
                 }
                 /* No response to UVDM. */
                 else if (response_state == UVDM_HANDLED_NO_RESPONSE)
                 {
                    /* Ignore Unstructured VDM response. */
-                    app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_FROM_EC;
+                    ((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_FROM_EC;
                 }
 #endif /* QC_PPS_ENABLE */
 
@@ -708,12 +749,12 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
                      */
 
                     /* No VDM response required. */
-                    app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_REQ;
+                    ((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_REQ;
 #if CY_PD_REV3_ENABLE
                     if (pd3_live)
                     {
                         /* PD 3.0 Contract: Respond with Not_Supported. */
-                        app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_SUPP;
+                        ((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_SUPP;
                     }
 #endif /* CY_PD_REV3_ENABLE */
                 }
@@ -728,7 +769,7 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
 #else /* (FLASHING_MODE_PD_ENABLE != 1) */
 
 #if UVDM_SUPP
-        if (eval_rec_vdm(port, vdm) == false)
+        if (Cy_PdAltMode_Mngr_EvalRecVdm((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext), vdm) == false)
         {
             /* If UVDM not successful then ignore this UVDM */
             app_stat->vdmResp.noResp = VDM_AMS_RESP_FROM_EC;
@@ -742,12 +783,12 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
            )
         {
             /* If UVDM not successful then ignore this UVDM */
-            app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_FROM_EC;
+            ptrAltModeContext->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_FROM_EC;
         }
         else
         {
             /* PD 3.0 Contract: Respond with Not_Supported. */
-            app_stat->vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_SUPP;
+            ptrAltModeContext->appStatus.vdmResp.noResp = CY_PDSTACK_VDM_AMS_RESP_NOT_SUPP;
         }
 #endif /* UVDM_SUPP */
 #endif /* FLASHING_MODE_PD_ENABLE */
@@ -756,15 +797,15 @@ void eval_vdm(cy_stc_pdstack_context_t * context, const cy_stc_pdstack_pd_packet
 #if MUX_DELAY_EN
     /* Send VDM response only when MUX is idle or alt mode response is NACK */
     if (
-            (app_stat->vdmResp.respBuf[VDM_HEADER_IDX].std_vdm_hdr.cmdType != CMD_TYPE_RESP_ACK) ||
-            (app_stat->is_mux_busy == false)
+            (ptrAltModeContext->appStatus.vdmResp.respBuf[CY_PD_VDM_HEADER_IDX].std_vdm_hdr.cmdType != CY_PDSTACK_CMD_TYPE_RESP_ACK) ||
+            (ptrAltModeContext->appStatus.is_mux_busy == false)
        )
     {
-        vdm_resp_handler(port, &app_stat->vdmResp);
-        app_stat->is_vdm_pending = false;
+        vdm_resp_handler(ptrAltModeContext->pdStackContext, &ptrAltModeContext->appStatus.vdmResp);
+        ptrAltModeContext->appStatus.is_vdm_pending = false;
     }
 #else
-    vdm_resp_handler(context, &app_stat->vdmResp);
+    vdm_resp_handler(context, &(((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.vdmResp));
 #endif /* MUX_DELAY_EN */
 }
 

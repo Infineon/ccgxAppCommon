@@ -1,19 +1,17 @@
-/***************************************************************************//**
-* \file swap.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   swap.h
+* \version 2.0
 *
-* Swap request (PR_SWAP, DR_SWAP, VCONN_SWAP) handlers header file.
+* Description: Swap request (PR_SWAP, DR_SWAP, VCONN_SWAP) handlers.
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -28,6 +26,10 @@
 #include "cy_pdstack_common.h"
 #include "config.h"
 
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /*****************************************************************************
  * Defines
  *****************************************************************************/
@@ -83,7 +85,7 @@ void eval_vconn_swap(cy_stc_pdstack_context_t * context, cy_pdstack_app_resp_cbk
 void eval_fr_swap(cy_stc_pdstack_context_t * context, cy_pdstack_app_resp_cbk_t app_resp_handler);
 
 #endif /* CY_PD_REV3_ENABLE */
-
+/** \} group_ccgxAppCommon_functions */
 /** \} group_ccgxAppCommon */
 
 #endif /* _SWAP_H_ */

@@ -1,12 +1,13 @@
 /******************************************************************************
 * File Name: srom_vars_ccg7s.c
+* \version 2.0
 *
 * Description: Source file for CCG7S SROM code
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include "srom.h"
@@ -14,6 +15,7 @@
 #include "cy_flash.h"
 #include "flash.h"
 #include "cy_pdstack_common.h"
+#include "ccg7s_rom_wrapper.h"
 
 #if (defined(CY_DEVICE_CCG7S) && (CCG_SROM_CODE_ENABLE))
 #if SROM_CODE_CRYPTO
@@ -59,10 +61,10 @@ const PHSIOM_REGS_T HSIOM[] = /* PRQA S 6004 */
 
 #if SROM_CODE_HPISS_HPI
 /* QAC suppression 3449, 3451, 6004: External variable required by SROM code */
-extern volatile uint32 cyBtldrRunType; /* PRQA S 3449, 3451, 6004 */
+extern volatile uint32_t cyBtldrRunType; /* PRQA S 3449, 3451, 6004 */
 extern void soln_boot_CySoftwareReset(void);
 
-extern void EC_INT_Write(uint8 value);
+extern void EC_INT_Write(uint8_t value);
 
 #if (!CCG_HPI_AUTO_CMD_ENABLE)
 void ccg_power_throttle_set_feature_mask_dummy(cy_stc_pdstack_context_t *ptrPdStackContext, uint8_t mask);
@@ -134,10 +136,10 @@ static const srom_out_cbk_t gl_srom_out_callback =
 #if SROM_CODE_SCB_I2C
     .Get_PdStack_Context = get_pdstack_context,
     /* Timer functions. */
-    .cy_sw_timer_start = cy_sw_timer_start,
-    .cy_sw_timer_stop = cy_sw_timer_stop,
-    .cy_sw_timer_stop_range = cy_sw_timer_stop_range,
-    .cy_sw_timer_is_running = cy_sw_timer_is_running,
+    .Cy_PdUtils_SwTimer_Start = Cy_PdUtils_SwTimer_Start_rom,
+    .Cy_PdUtils_SwTimer_Stop = Cy_PdUtils_SwTimer_Stop_rom,
+    .Cy_PdUtils_SwTimer_StopRange = Cy_PdUtils_SwTimer_StopRange_rom,
+    .Cy_PdUtils_SwTimer_IsRunning = Cy_PdUtils_SwTimer_IsRunning_rom,
 #endif /* SROM_CODE_SCB_I2C */    
 
 #if SROM_CODE_HPISS_HPI
@@ -224,6 +226,10 @@ static const srom_out_cbk_t gl_srom_out_callback =
 #if !CCG_BOOT
     .Cy_PdStack_Dpm_Start = Cy_PdStack_Dpm_Start,
     .app_disable_pd_port = app_disable_pd_port,
+#else
+    .Cy_PdStack_Dpm_Start = NULL,
+    .app_disable_pd_port = NULL,
+#endif /* CCG_BOOT */
 #if CCG_LIN_ENABLE
     .lins_hpi_write = lins_hpi_write,
     .lins_scb_hpi_init = lins_scb_hpi_init,
@@ -235,14 +241,6 @@ static const srom_out_cbk_t gl_srom_out_callback =
     .lins_scb_deinit = NULL,
     .lins_scb_enable_wakeup = NULL,
 #endif /* CCG_LIN_ENABLE */
-#else
-    .Cy_PdStack_Dpm_Start = NULL,
-    .app_disable_pd_port = NULL,
-    .lins_hpi_write = NULL,
-    .lins_scb_hpi_init = NULL,
-    .lins_scb_deinit = NULL,
-    .lins_scb_enable_wakeup = NULL,
-#endif /* CCG_BOOT */
     .boot_validate_fw = boot_validate_fw,
 #endif /* SROM_CODE_HPISS_HPI */ 
 };
@@ -414,7 +412,7 @@ srom_vars_t *gl_p_srom_vars;
 
 void srom_vars_init_ccg7s (void)
 {
-    mem_set ((uint8_t *)&gl_srom_vars, 0, sizeof(srom_vars_t));
+    CY_PDUTILS_MEM_SET ((uint8_t *)&gl_srom_vars, 0, sizeof(srom_vars_t));
     srom_vars_t *vars;
     /* Setup the pointers */
     /* QAC suppression 0311: Assigned pointer is only used for read only purpose */

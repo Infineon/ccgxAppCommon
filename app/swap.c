@@ -1,22 +1,21 @@
-/***************************************************************************//**
-* \file swap.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   swap.c
+* \version 2.0
 *
-* Swap request (PR_SWAP, DR_SWAP, VCONN_SWAP) handlers source file.
+* Description: Swap request (PR_SWAP, DR_SWAP, VCONN_SWAP) handlers.
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include <swap.h>
 #include <app.h>
 #include "config.h"
 #include "cy_usbpd_config_table.h"
+#include "cy_pdaltmode_defines.h"
 
 #if ICL_ENABLE
 #include <icl.h>    
@@ -73,7 +72,7 @@ void eval_dr_swap (cy_stc_pdstack_context_t * context, cy_pdstack_app_resp_cbk_t
 {
     cy_en_pdstack_app_req_status_t result = CY_PDSTACK_REQ_REJECT;
 
-    if (app_get_status(context->port)->alt_mode_entered == true)
+    if (((cy_stc_pdaltmode_context_t *)(context->ptrAltModeContext))->appStatus.alt_mode_entered == true)
     {
         result = CY_PDSTACK_REQ_SEND_HARD_RESET;
     }

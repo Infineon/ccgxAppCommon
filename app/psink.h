@@ -1,22 +1,22 @@
-/***************************************************************************//**
-* \file psink.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   psink.h
+* \version 2.0
 *
-* Power Sink (Consumer) manager header file 
+* Description: Power Sink (Consumer) manager header file
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
+
+
 
 #ifndef _PSINK_H_
 #define _PSINK_H_
@@ -29,6 +29,10 @@
 /*****************************************************************************
  * Global Function Declaration
  *****************************************************************************/
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 
 /**
  * @brief This function sets the expected VBus voltage when
@@ -107,6 +111,7 @@ void sink_fet_on(cy_stc_pdstack_context_t * context);
  */
 void psnk_set_vbus_cfet_on_ctrl (uint8_t port, uint8_t enable);
 #endif /* CCG_HPI_VBUS_C_CTRL_ENABLE */
+/** \} group_ccgxAppCommon_functions */
 #endif /* CY_PD_SINK_ONLY */
 #endif /* _PSINK_H_ */
 /* End of File */

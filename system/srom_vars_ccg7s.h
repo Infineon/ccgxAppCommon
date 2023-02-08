@@ -1,12 +1,13 @@
 /******************************************************************************
 * File Name: srom_vars_ccg7s.h
+* \version 2.0
 *
 * Description: Header file for CCG7S SROM code
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #ifndef SROM_VARS_CCG7S_H_
@@ -41,9 +42,9 @@
 #endif /* CCG_LIN_ENABLE */
 #include "gpio.h"
 #include "cy_pdstack_common.h"
-#include "cy_pdstack_utils.h"
+#include "cy_pdutils.h"
 #include "system.h"
-#include "cy_sw_timer.h"
+#include <cy_pdutils_sw_timer.h>
 
 #include "boot.h"
 #include "mbedtls/sha256.h"
@@ -85,10 +86,10 @@ typedef struct
     cy_stc_pdstack_context_t* (*Get_PdStack_Context)(uint8_t portIdx);
 
     /* Timer Functions */
-    bool(*cy_sw_timer_start)(cy_stc_sw_timer_t *context, void *callbackContext,cy_timer_id_t id, uint16_t period, cy_cb_timer_t cb);
-    void(*cy_sw_timer_stop) (cy_stc_sw_timer_t *context, cy_timer_id_t id);
-    void (*cy_sw_timer_stop_range)(cy_stc_sw_timer_t *context, cy_timer_id_t start, cy_timer_id_t end);
-    bool (*cy_sw_timer_is_running) (cy_stc_sw_timer_t *context, cy_timer_id_t id);
+    bool(*Cy_PdUtils_SwTimer_Start)(cy_stc_pdutils_sw_timer_t *context, void *callbackContext,cy_timer_id_t id, uint16_t period, cy_cb_timer_t cb);
+    void(*Cy_PdUtils_SwTimer_Stop) (cy_stc_pdutils_sw_timer_t *context, cy_timer_id_t id);
+    void (*Cy_PdUtils_SwTimer_StopRange)(cy_stc_pdutils_sw_timer_t *context, cy_timer_id_t start, cy_timer_id_t end);
+    bool (*Cy_PdUtils_SwTimer_IsRunning) (cy_stc_pdutils_sw_timer_t *context, cy_timer_id_t id);
 
     /* HPI Functions */
     uint32_t (*Cy_SysLib_EnterCriticalSection)(void);
@@ -350,10 +351,10 @@ extern srom_vars_t *gl_p_srom_vars;
 
 /* Timer functions */
 #if ((SROM_CODE_SCB_I2C))
-#define call_cy_sw_timer_start(func)                 CALL_OUT_FUNCTION(func)
-#define call_cy_sw_timer_stop(func)                  CALL_OUT_FUNCTION(func)
-#define call_cy_sw_timer_stop_range(func)            CALL_OUT_FUNCTION(func)
-#define call_cy_sw_timer_is_running(func)            CALL_OUT_FUNCTION(func)
+#define call_Cy_PdUtils_SwTimer_Start(func)                 CALL_OUT_FUNCTION(func)
+#define call_Cy_PdUtils_SwTimer_Stop(func)                  CALL_OUT_FUNCTION(func)
+#define call_Cy_PdUtils_SwTimer_StopRange(func)            CALL_OUT_FUNCTION(func)
+#define call_Cy_PdUtils_SwTimer_IsRunning(func)            CALL_OUT_FUNCTION(func)
 #endif /* (SROM_CODE_SCB_I2C) */ 
 
 /* HPI Functions */

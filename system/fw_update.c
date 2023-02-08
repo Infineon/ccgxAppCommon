@@ -1,19 +1,20 @@
 /******************************************************************************
 * File Name: boot.c
+* \version 2.0
 *
 * Description: Firmware Update Source File
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include <config.h>
 #include <stdio.h>
 #include <string.h>
 #include "flash.h"
-#include "cy_pdstack_utils.h"
+#include "cy_pdutils.h"
 #include "system.h"
 #include "fw_update.h"
 #include "flash.h"
@@ -21,8 +22,7 @@
 #include "srom.h"
 #include "cy_usbpd_defines.h"
 #include "uvdm.h"
-#include "cy_sw_timer_id.h"
-#include "app.h"
+#include "app_timer_id.h"
 
 /* FWCT SIZE in ROWs - 1 */
 #if (CCG_FWCT_TABLE_SIZE > CCG_FLASH_ROW_SIZE)
@@ -39,13 +39,12 @@
 #define FWCT_SIG_SIZE_IN_ROWS           (0u)
 #endif /* (CCG_FWCT_SIG_SIZE <= CCG_FLASH_ROW_SIZE) */
 
+#if AUTH_BOOT
 #if I2C_BOOT && BOOTWAIT_ENABLE
 /* Global variable to keep track of solution level functions */
 extern app_sln_handler_t *solution_fn_handler;
 #endif /* I2C_BOOT && BOOTWAIT_ENABLE */
 
-#if AUTH_BOOT
-    
 /* Global variable to hold the current FW update state */
 static fw_update_states_t gl_fw_update_state = FW_UPDATE_NONE;
 
@@ -296,7 +295,7 @@ static void ccg_update_fwct_data(uint8_t image_t)
     /* 2's complement is calculated by subtracting from 0.*/
     /* QAC suppression 2986: This is 2's complement and not a redundant operation. */
     fwct_ram.checksum = (uint32_t)(0u - checksum); /* PRQA S 2986 */
-    mem_copy(data, (uint8_t *)&fwct_ram, CCG_FLASH_ROW_SIZE);
+    CY_PDUTILS_MEM_COPY(data, (uint8_t *)&fwct_ram, CCG_FLASH_ROW_SIZE);
     
     CALL_MAP(flash_set_access_limits)(PRIM_FWCT_1_FLASH_ROW_NUM, PRIM_FWCT_2_FLASH_ROW_NUM + 2,
                             PRIMARY_FW_MD_ROW, CCG_PUBLIC_KEY_ROW_NUM - 1);
@@ -361,10 +360,10 @@ static bool ccg_validate_fwct(cy_en_pdstack_status_t *stat)
  
     fwct_p = (fwct_t *)((row_num) << CCG_FLASH_ROW_SHIFT_NUM);
     
-    mem_copy((uint8_t *)&fwct_ram_base, (const uint8_t *)&fwct_ram.base_fw_version, sizeof(uint32_t));
-    mem_copy((uint8_t *)&fwct_flash_base, (const uint8_t *)&fwct_p->min_base_fw_version, sizeof(uint32_t));
-    mem_copy((uint8_t *)&fwct_ram_app, (const uint8_t *)&fwct_ram.app_fw_version, sizeof(uint32_t));
-    mem_copy((uint8_t *)&fwct_flash_app, (const uint8_t *)&fwct_p->min_app_fw_version, sizeof(uint32_t));
+    CY_PDUTILS_MEM_COPY((uint8_t *)&fwct_ram_base, (const uint8_t *)&fwct_ram.base_fw_version, sizeof(uint32_t));
+    CY_PDUTILS_MEM_COPY((uint8_t *)&fwct_flash_base, (const uint8_t *)&fwct_p->min_base_fw_version, sizeof(uint32_t));
+    CY_PDUTILS_MEM_COPY((uint8_t *)&fwct_ram_app, (const uint8_t *)&fwct_ram.app_fw_version, sizeof(uint32_t));
+    CY_PDUTILS_MEM_COPY((uint8_t *)&fwct_flash_app, (const uint8_t *)&fwct_p->min_app_fw_version, sizeof(uint32_t));
     
     /* Check if application name is matched. */
     if (((fwct_ram_app & 0x0000FFFFu) == (fwct_flash_app & 0x0000FFFFu)) || (fwct_flash_app == 0u))
@@ -443,7 +442,7 @@ cy_en_pdstack_status_t secure_boot_validate_fw(sys_fw_metadata_t * fw_md, uint8_
             /* Get the Active FWCT row */
             uint16_t active_row_num = gl_fwct_row_nos[image_t][gl_fwct_active_row_idx[image_t]];
             /* Read the stored FWCT into RAM */
-            mem_copy((uint8_t *)&fwct_ram, (const uint8_t *)(active_row_num << CCG_FLASH_ROW_SHIFT_NUM), CCG_FLASH_ROW_SIZE);
+            CY_PDUTILS_MEM_COPY((uint8_t *)&fwct_ram, (const uint8_t *)(active_row_num << CCG_FLASH_ROW_SHIFT_NUM), CCG_FLASH_ROW_SIZE);
             /* Compute the hash of the Firmware and update the RAM FWCT firmware digest value */
             ccg_calculate_fw_hash (fw_loc, fw_md->config_fw_size, fwct_ram.img_digest, gl_image_md_row_add[image_t]);
             /* Compute the hash of the stored FWCT */
@@ -478,7 +477,7 @@ static void secure_boot_fwct_write_handler(uint16_t write_row, uint8_t *flash_me
     }
     else
     {
-        mem_copy((uint8_t *)&fwct_ram + (write_row << CCG_FLASH_ROW_SHIFT_NUM), flash_mem, CCG_MAX_FLASH_ROW_SIZE);
+        CY_PDUTILS_MEM_COPY((uint8_t *)&fwct_ram + (write_row << CCG_FLASH_ROW_SHIFT_NUM), flash_mem, CCG_MAX_FLASH_ROW_SIZE);
         *code = CY_PDSTACK_STAT_SUCCESS;
 #if (CCG_FWCT_TABLE_SIZE > CCG_FLASH_ROW_SIZE)
         if (FWCT_SIZE_IN_ROWS == write_row)
@@ -511,7 +510,7 @@ static void secure_boot_sig_write_handler(uint16_t write_row, uint8_t *flash_mem
     }
     else
     {
-        mem_copy(&fwct_sig[write_row << CCG_FLASH_ROW_SHIFT_NUM], flash_mem, CCG_FLASH_ROW_SIZE);
+        CY_PDUTILS_MEM_COPY(&fwct_sig[write_row << CCG_FLASH_ROW_SHIFT_NUM], flash_mem, CCG_FLASH_ROW_SIZE);
         *code = CY_PDSTACK_STAT_SUCCESS;
 #if (CCG_FWCT_SIG_SIZE > CCG_FLASH_ROW_SIZE)
         if(FWCT_SIG_SIZE_IN_ROWS == write_row)
@@ -691,7 +690,7 @@ void update_i2c_fsm(uint8_t cmd_opcode, uint8_t *cmd_param, uint8_t *flash_mem, 
 
                                 /* FWCT Signature Write command. */  
                                 *stat = CY_PDSTACK_STAT_SUCCESS;
-                                write_row = MAKE_WORD (cmd_param[HPI_FLASH_READ_WRITE_ROW_MSB], cmd_param[HPI_FLASH_READ_WRITE_ROW_LSB]);
+                                write_row = CY_PDUTILS_MAKE_WORD (cmd_param[HPI_FLASH_READ_WRITE_ROW_MSB], cmd_param[HPI_FLASH_READ_WRITE_ROW_LSB]);
                                 secure_boot_sig_write_handler(write_row, flash_mem, stat, FLASH_IF_HPI);
                                 *code = (hpi_response_t)(uint8_t)CCG_STATUS_TO_HPI_RESPONSE((uint8_t)*stat);
                             }
@@ -712,7 +711,7 @@ void update_i2c_fsm(uint8_t cmd_opcode, uint8_t *cmd_param, uint8_t *flash_mem, 
                                 set_upd_inf_access(true, FLASH_IF_HPI);
                                 /* 128 bytes FWCT Write command. */
                                 *stat = CY_PDSTACK_STAT_SUCCESS;
-                                write_row = MAKE_WORD (cmd_param[HPI_FLASH_READ_WRITE_ROW_MSB], cmd_param[HPI_FLASH_READ_WRITE_ROW_LSB]);
+                                write_row = CY_PDUTILS_MAKE_WORD (cmd_param[HPI_FLASH_READ_WRITE_ROW_MSB], cmd_param[HPI_FLASH_READ_WRITE_ROW_LSB]);
                                 secure_boot_fwct_write_handler(write_row, flash_mem, stat, FLASH_IF_HPI);
                                 *code = (hpi_response_t)(uint8_t)CCG_STATUS_TO_HPI_RESPONSE((uint8_t)*stat);
                             }
@@ -724,7 +723,7 @@ void update_i2c_fsm(uint8_t cmd_opcode, uint8_t *cmd_param, uint8_t *flash_mem, 
 
                             /* Flash write command. */
                             *stat = CY_PDSTACK_STAT_SUCCESS;
-                            write_row = MAKE_WORD (cmd_param[HPI_FLASH_READ_WRITE_ROW_MSB], cmd_param[HPI_FLASH_READ_WRITE_ROW_LSB]);
+                            write_row = CY_PDUTILS_MAKE_WORD (cmd_param[HPI_FLASH_READ_WRITE_ROW_MSB], cmd_param[HPI_FLASH_READ_WRITE_ROW_LSB]);
                             secure_boot_flash_write_handler(write_row, flash_mem, stat, FLASH_IF_UVDM);
                             *code = (hpi_response_t)(uint8_t)CCG_STATUS_TO_HPI_RESPONSE((uint8_t)*stat);
                             glLastRowWritten = write_row;
@@ -732,7 +731,7 @@ void update_i2c_fsm(uint8_t cmd_opcode, uint8_t *cmd_param, uint8_t *flash_mem, 
                         }
                     case HPI_FLASH_ROW_READ_CMD:
                         {
-                            write_row = MAKE_WORD (cmd_param[HPI_FLASH_READ_WRITE_ROW_MSB], cmd_param[HPI_FLASH_READ_WRITE_ROW_LSB]);
+                            write_row = CY_PDUTILS_MAKE_WORD (cmd_param[HPI_FLASH_READ_WRITE_ROW_MSB], cmd_param[HPI_FLASH_READ_WRITE_ROW_LSB]);
                             if (gl_read_row != write_row)
                             {
                                 *is_handled = true;
@@ -759,13 +758,13 @@ void update_i2c_fsm(uint8_t cmd_opcode, uint8_t *cmd_param, uint8_t *flash_mem, 
 #if BOOTWAIT_ENABLE
             case HPI_DEV_REG_JUMP_TO_BOOT:
             {
-                if(cy_sw_timer_is_running(solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext, BL_BOOT_WAIT_TIMER_ID) == true)
+                if(CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext, BL_BOOT_WAIT_TIMER_ID) == true)
                 {
                     *is_handled = true;
                     if (cmd_param[HPI_SIGNATURE_OFFSET] == (uint8_t)HPI_JUMP_TO_BOOT_CMD_SIG)
                     {
                         *code = HPI_RESPONSE_SUCCESS;
-                        cy_sw_timer_stop(solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext, BL_BOOT_WAIT_TIMER_ID);
+                        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext, BL_BOOT_WAIT_TIMER_ID);
                     }
                 }
                 break;
@@ -856,7 +855,7 @@ void signed_fw_update_fsm (uint8_t cmd_opcode, uint8_t cmd_length, uint8_t *cmd_
                         *response_code = CY_PDSTACK_STAT_SUCCESS;
                         
                         /* FWCT write command */
-                        write_row = MAKE_WORD (cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET], cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
+                        write_row = CY_PDUTILS_MAKE_WORD (cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET], cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
                         
                         secure_boot_fwct_write_handler(write_row, data, response_code, FLASH_IF_UVDM);
                         if(*response_code == CY_PDSTACK_STAT_OUT_OF_SEQ_CMD)
@@ -900,7 +899,7 @@ void signed_fw_update_fsm (uint8_t cmd_opcode, uint8_t cmd_length, uint8_t *cmd_
                     else
                     {                    
                         *is_handled = true;
-                        write_row = MAKE_WORD (cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET], cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
+                        write_row = CY_PDUTILS_MAKE_WORD (cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET], cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
                         secure_boot_sig_write_handler(write_row, data, response_code, FLASH_IF_UVDM);
                     }
                 }
@@ -925,7 +924,7 @@ void signed_fw_update_fsm (uint8_t cmd_opcode, uint8_t cmd_length, uint8_t *cmd_
                 else
                 {
                     *is_handled = true;
-                    write_row = MAKE_WORD (cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET], cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
+                    write_row = CY_PDUTILS_MAKE_WORD (cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET], cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
                     secure_boot_flash_write_handler(write_row, data, response_code, FLASH_IF_UVDM);
                     glLastRowWritten = write_row;
                     break;
@@ -961,7 +960,7 @@ void signed_fw_update_fsm (uint8_t cmd_opcode, uint8_t cmd_length, uint8_t *cmd_
                 else
                 {
                     /* Allow flash read in Signed FSM only for write verification */
-                    write_row =  MAKE_WORD (cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET], cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
+                    write_row =  CY_PDUTILS_MAKE_WORD (cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET], cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
                     if (gl_read_row != write_row)
                     {
                         *is_handled = true;

@@ -1,20 +1,17 @@
-/***************************************************************************//**
-* \file sensor_check.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name: sensor_check.h
+* \version 2.0
 *
-* Vin and temperature based throttling header file.
+* Description: Sensor check handler header file.
 *
+* Related Document: See README.md
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -41,7 +38,10 @@
 /*******************************************************************************
  * MACRO Definition
  ******************************************************************************/
- 
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 /**
    @brief Temperature sensor enable
  */
@@ -79,11 +79,14 @@
  */
 #define CCG_OC_BUFFER_DATE_TYPE void
 #endif /* CCG_HPI_AUTO_CMD_ENABLE */
-
+/** \} group_ccgxAppCommon_macros */
 /*******************************************************************************
  * Global Function Declaration
  ******************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief This function initializes the sensor check block. This should be
  * called one time only at system startup.
@@ -148,7 +151,7 @@ uint8_t ccg_get_sys_oc(cy_stc_pdstack_context_t *ptrPdStackcontext, CCG_OC_BUFFE
  * @return None
  */
 void ccg_set_sensor_sleep_mode(cy_stc_pdstack_context_t *ptrPdStackcontext);
-
+/** \} group_ccgxAppCommon_functions */
 /** \} group_ccgxAppCommon */
 
 #endif /* SENSOR_CHECK_H_ */

@@ -1,5 +1,6 @@
 /******************************************************************************
 * File Name: instrumentation.h
+* \version 2.0
 *
 * Description: Header file containing application instrumentation definitions
 *
@@ -10,18 +11,22 @@
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 #ifndef _INSTRUMENTATION_H_
 #define _INSTRUMENTATION_H_
 
 #include <stdint.h>
-#include "cy_sw_timer.h"
+#include <cy_pdutils_sw_timer.h>
+
+/** \addtogroup group_ccgxAppCommon_enums
+* \{
+*/
 
 /**
  * @brief Enumeration of all instrumentation fault events.
@@ -31,12 +36,15 @@ typedef enum instrumentation_events
     INST_EVT_WDT_RESET = 0,                 /**< 0x00: Instrumentation fault event for watchdog reset. */
     INST_EVT_HARD_FAULT = 1                 /**< 0x01: Instrumentation fault event for hard fault. */
 } inst_evt_t;
-
+/** \} group_ccgxAppCommon_enums */
 /**
  * @brief Callback function to solution level handler for instrumentation faults.
  */
 typedef void (*instrumentation_cb_t)(uint8_t port, uint8_t evt);
-
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief Initialize data structures associated with application instrumentation.
  * @return None
@@ -69,7 +77,7 @@ void instrumentation_register_cb(instrumentation_cb_t cb);
  * @param callbackContext Callback pointer
  */
 void watchdog_timer_cb (cy_timer_id_t id, void *callbackContext);
-
+/** \} group_ccgxAppCommon_functions */
 #endif /* _INSTRUMENTATION_H_ */
 
 /** \} group_ccgxAppCommon */

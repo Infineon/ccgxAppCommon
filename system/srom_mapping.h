@@ -1,12 +1,13 @@
 /******************************************************************************
 * File Name: srom_mapping.h
+* \version 2.0
 *
 * Description: SROM Code default mapping header file.
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #ifndef SROM_MAPPING_H_
@@ -35,6 +36,9 @@
 #define call_div_round_up(func)                   (func)
 #endif /* call_div_round_up(func) */
 
+#ifndef call_apply_threshold
+#define call_apply_threshold(func)   (func)
+#endif /* call_apply_threshold */
 #ifndef call_gl_op_cur_power
 #define call_gl_op_cur_power(func)                (func)
 #endif /* call_gl_op_cur_power(func) */
@@ -275,8 +279,8 @@
 #define call_dpm_get_status(func)                 (func)
 #endif /* call_dpm_get_status(func) */
 
-#ifndef call_mem_set
-#define call_mem_set(func)                        (func)
+#ifndef call_CY_PDUTILS_MEM_SET
+#define call_CY_PDUTILS_MEM_SET(func)                        (func)
 #endif /* call_mem_set(func) */
 
 #ifndef call_pd_phy_load_msg
@@ -327,8 +331,8 @@
 #define call_pd_phy_get_rx_packet(func)           (func)
 #endif /* call_pd_phy_get_rx_packet(func) */
 
-#ifndef call_mem_copy_word
-#define call_mem_copy_word(func)                  (func)
+#ifndef call_CY_PDUTILS_MEM_COPY_word
+#define call_CY_PDUTILS_MEM_COPY_word(func)                  (func)
 #endif /* call_mem_copy_word(func) */
 
 #ifndef call_pd_frs_rx_disable
@@ -956,21 +960,31 @@
 #define call_app_update_bc_src_snk_support(func)  (func)
 #endif /* call_app_update_bc_src_snk_support(func) */
 
-#ifndef call_cy_sw_timer_start
-#define call_cy_sw_timer_start(func)              (func)
-#endif /* call_cy_sw_timer_start */
+#ifndef call_bc_tmr_cbk
+#define call_bc_tmr_cbk(func)                     (func)
+#endif 
 
-#ifndef call_cy_sw_timer_stop
-#define call_cy_sw_timer_stop(func)              (func)
-#endif /* call_cy_sw_timer_stop */
+#ifndef call_cy_sw_timer_init
+#define call_cy_sw_timer_init(func)              (func)
+#endif /* call_cy_sw_timer_init */
+#ifndef call_Cy_PdUtils_SwTimer_Start
+#define call_Cy_PdUtils_SwTimer_Start(func)              (func)
+#endif /* call_Cy_PdUtils_SwTimer_Start */
 
-#ifndef call_cy_sw_timer_stop_range
-#define call_cy_sw_timer_stop_range(func)        (func)
-#endif /* call_cy_sw_timer_stop_range */
+#ifndef call_Cy_PdUtils_SwTimer_Stop
+#define call_Cy_PdUtils_SwTimer_Stop(func)              (func)
+#endif /* call_Cy_PdUtils_SwTimer_Stop */
 
-#ifndef call_cy_sw_timer_is_running
-#define call_cy_sw_timer_is_running(func)        (func)
-#endif /* call_cy_sw_timer_is_running */
+#ifndef call_Cy_PdUtils_SwTimer_Stop_all
+#define call_Cy_PdUtils_SwTimer_Stop_all(func)              (func)
+#endif /* call_Cy_PdUtils_SwTimer_Stop_all */
+#ifndef call_Cy_PdUtils_SwTimer_StopRange
+#define call_Cy_PdUtils_SwTimer_StopRange(func)        (func)
+#endif /* call_Cy_PdUtils_SwTimer_StopRange */
+
+#ifndef call_Cy_PdUtils_SwTimer_IsRunning
+#define call_Cy_PdUtils_SwTimer_IsRunning(func)        (func)
+#endif /* call_Cy_PdUtils_SwTimer_IsRunning */
 
 #ifndef call_calloc
 #define call_calloc(func)                        (func)

@@ -1,20 +1,18 @@
-/***************************************************************************//**
-* \file vdm.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   vdm.h
+* \version 2.0
 *
-* Vendor Defined Message (VDM) handler header file.
+* Description: Vendor Defined Message (VDM) handler header file.
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -27,14 +25,22 @@
 
 #include <cy_pdstack_common.h>
 /**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
+/**
    @brief Defines the starting index of VDO
  */
 #define VDO_START_IDX                   (1u)
+/** \} group_ccgxAppCommon_macros */
 
 /*****************************************************************************
  * Global Function Declaration
  *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief Store the VDM data from the configuration table.
  *
@@ -146,7 +152,7 @@ void vdm_update_svid_resp(cy_stc_pdstack_context_t * context, uint8_t svid_vdo_c
  */
 cy_pd_pd_do_t* get_gl_vdm_id(cy_stc_pdstack_context_t * context);
 /** @endcond */
-
+/** \} group_ccgxAppCommon_functions */
 #endif /* _VDM_H_ */
 
 /** \} group_ccgxAppCommon */

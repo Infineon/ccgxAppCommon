@@ -1,5 +1,20 @@
 var searchData=
 [
-  ['ccg_5fsupply_5fv5v',['CCG_SUPPLY_V5V',['../group__group__ccgxAppCommon.html#gga7a9af8ba98e8e424f8442e293f854f0fae5d6b6fec2d8a0c99fd941a27605ff67',1,'app.h']]],
-  ['ccg_5fsupply_5fvsys',['CCG_SUPPLY_VSYS',['../group__group__ccgxAppCommon.html#gga7a9af8ba98e8e424f8442e293f854f0faa4bc81152f4149de1af2c76aaef6f6cf',1,'app.h']]]
+  ['cable_5freset',['CABLE_RESET',['../group__group__ccgxAppCommon__enums.html#gga0ad4e6836c9e0d310907c3e60ea28506a06f22703f2477a90e10e91978558f10a',1,'ccg7d_rom_pd.h']]],
+  ['cbl_5ffsm_5fdisabled',['CBL_FSM_DISABLED',['../group__group__ccgxAppCommon__enums.html#ggac1926769569f7b883a5a954185242955a91c551c8008e809eb8760ba17cdd9453',1,'ccg7d_rom_pd.h']]],
+  ['cbl_5ffsm_5fentry',['CBL_FSM_ENTRY',['../group__group__ccgxAppCommon__enums.html#ggac1926769569f7b883a5a954185242955aa259e223b5a8f4c80413602c2955b9cc',1,'ccg7d_rom_pd.h']]],
+  ['cbl_5ffsm_5fsend_5fdsc_5fid',['CBL_FSM_SEND_DSC_ID',['../group__group__ccgxAppCommon__enums.html#ggac1926769569f7b883a5a954185242955ac5c77e726fa4b0683a6c0a38d2bf4eb2',1,'ccg7d_rom_pd.h']]],
+  ['cbl_5ffsm_5fsend_5fsoft_5freset',['CBL_FSM_SEND_SOFT_RESET',['../group__group__ccgxAppCommon__enums.html#ggac1926769569f7b883a5a954185242955a7e7f387353d3b772d0aa02e39e36c5f5',1,'ccg7d_rom_pd.h']]],
+  ['ccg_5fsupply_5fv5v',['CCG_SUPPLY_V5V',['../group__group__ccgxAppCommon__data__structures.html#gga7a9af8ba98e8e424f8442e293f854f0fae5d6b6fec2d8a0c99fd941a27605ff67',1,'app.h']]],
+  ['ccg_5fsupply_5fvsys',['CCG_SUPPLY_VSYS',['../group__group__ccgxAppCommon__data__structures.html#gga7a9af8ba98e8e424f8442e293f854f0faa4bc81152f4149de1af2c76aaef6f6cf',1,'app.h']]],
+  ['cmd_5ffailed',['CMD_FAILED',['../group__group__ccgxAppCommon__enums.html#gga2935dbbe00dab9db93f349e6e5530452a4d9b98d749f1385bb60a67c753fd88d5',1,'ccg7d_rom_pd.h']]],
+  ['cmd_5fsent',['CMD_SENT',['../group__group__ccgxAppCommon__enums.html#gga2935dbbe00dab9db93f349e6e5530452a5a347c776757e4390343fadc7234b7db',1,'ccg7d_rom_pd.h']]],
+  ['cmd_5ftype_5finitiator',['CMD_TYPE_INITIATOR',['../group__group__ccgxAppCommon__enums.html#ggafb823019d5683e26a2d06c47360a9ae4a9a47e75a981991d5d123fa306a00c158',1,'ccg7d_rom_pd.h']]],
+  ['cmd_5ftype_5fresp_5fack',['CMD_TYPE_RESP_ACK',['../group__group__ccgxAppCommon__enums.html#ggafb823019d5683e26a2d06c47360a9ae4a5f3c72a00a81c33b3e052f6aa5d35f70',1,'ccg7d_rom_pd.h']]],
+  ['cmd_5ftype_5fresp_5fbusy',['CMD_TYPE_RESP_BUSY',['../group__group__ccgxAppCommon__enums.html#ggafb823019d5683e26a2d06c47360a9ae4a7db59425473aea6890063397e51e310d',1,'ccg7d_rom_pd.h']]],
+  ['cmd_5ftype_5fresp_5fnak',['CMD_TYPE_RESP_NAK',['../group__group__ccgxAppCommon__enums.html#ggafb823019d5683e26a2d06c47360a9ae4acd62afb0e5475c22dca5bd274fc595a5',1,'ccg7d_rom_pd.h']]],
+  ['conn_5ftype_5fplug',['CONN_TYPE_PLUG',['../group__group__ccgxAppCommon__enums.html#gga26f9b51a87f051c46c3262307f831374adefd6b7f0a26e3782783f06425699033',1,'ccg7d_rom_pd.h']]],
+  ['conn_5ftype_5freceptacle',['CONN_TYPE_RECEPTACLE',['../group__group__ccgxAppCommon__enums.html#gga26f9b51a87f051c46c3262307f831374a962e1ed6d943c079688c9c130539666c',1,'ccg7d_rom_pd.h']]],
+  ['conn_5ftype_5frsvd',['CONN_TYPE_RSVD',['../group__group__ccgxAppCommon__enums.html#gga26f9b51a87f051c46c3262307f831374a4d092f1b2d21f963cb76b7e405e4e1b8',1,'ccg7d_rom_pd.h']]],
+  ['conn_5ftype_5frsvd1',['CONN_TYPE_RSVD1',['../group__group__ccgxAppCommon__enums.html#gga26f9b51a87f051c46c3262307f831374a313cf33b23cc9a944aa1f8faa84cbfd9',1,'ccg7d_rom_pd.h']]]
 ];

@@ -1,16 +1,13 @@
-/***************************************************************************//**
-* \file psource.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name: psource.c
+* \version 2.0
 *
-* Power source (Provider) manager source file.
+* Description: Power source (Provider) manager source file.
 *
+* Related Document: See README.md
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include "config.h"
@@ -19,8 +16,8 @@
 #endif /* CY_PD_SINK_ONLY */
 #include <app.h>
 #include <psource.h>
-#include <cy_sw_timer.h>
-#include <cy_sw_timer_id.h>
+#include <cy_pdutils_sw_timer.h>
+#include <app_timer_id.h>
 #include "cy_usbpd_vbus_ctrl.h"
 #include "cy_pdstack_dpm.h"
 #include <battery_charging.h>
@@ -42,6 +39,10 @@
 #include "cy_usbpd_buck_boost.h"
 #endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) */
 
+#ifndef CALL_MAP
+#define CALL_MAP(str)  (str)
+#endif /* CALL_MAP */
+
 /* Type-C current levels in 10mA units. */
 #define CUR_LEVEL_3A                        (300)
 #define CUR_LEVEL_1_5A                      (150)
@@ -50,9 +51,14 @@
 /* VBUS absolute maximum voltage in mV units */
 #define VBUS_MAX_VOLTAGE                      (21500u)
 
+#if ((defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) && (REGULATOR_REQUIRE_STABLE_ON_TIME  || APP_VBUS_SRC_FET_BYPASS_EN))
+/* Regulator enable status monitor interval */
+#define REGULATOR_STAT_MON_TIME_MS         (1u)
+#endif /* ((defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) && (REGULATOR_REQUIRE_STABLE_ON_TIME  || APP_VBUS_SRC_FET_BYPASS_EN)) */
+
 /* Allowed margin (%) over 5V before the provider FET is turned ON. */
 #define PSOURCE_SAFE_FET_ON_MARGIN          (5u)
-
+extern app_sln_handler_t *solution_fn_handler;
 static void psrc_dis_ovp(cy_stc_pdstack_context_t * context);
 void psrc_en_ovp(cy_stc_pdstack_context_t * context);
 void psrc_en_uvp(cy_stc_pdstack_context_t * context);
@@ -143,11 +149,11 @@ static void vbus_fet_on(cy_stc_pdstack_context_t *context)
                     Cy_USBPD_Vbus_DischargeOn(context->ptrUsbPdContext);
                 }
                 /* Start timer for safe FET ON timeout */
-                (void)cy_sw_timer_start(context->ptrTimerContext,context,APP_PSOURCE_SAFE_FET_ON_TIMER_ID,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_TIMER_ID),
                         APP_PSOURCE_SAFE_FET_ON_TIMER_PERIOD, psrc_fet_on_check_cbk);
 
                 /* Start timer to keep track of VBUS_IN voltage. */
-                (void)cy_sw_timer_start(context->ptrTimerContext,context,APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID),
                         APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_PERIOD, psrc_fet_on_check_cbk);
             }
 #if CCG_TYPE_A_PORT_ENABLE
@@ -165,7 +171,7 @@ static void vbus_fet_on(cy_stc_pdstack_context_t *context)
             app_get_status(port)->is_vbus_on = true;
 #if NCP_POWER_SAVE
 #if NCP_MANAGEMENT
-            (void)cy_sw_timer_start(context->ptrTimerContext, context, NCP_ENABLE_DELAY_ID,NCP_ENABLE_DELAY_PERIOD,ncp_manage_cbk);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, NCP_ENABLE_DELAY_ID,NCP_ENABLE_DELAY_PERIOD,ncp_manage_cbk);
 #else
             PD_CTRL_EN(port);
 #endif /* NCP_MANAGEMENT */
@@ -181,7 +187,6 @@ static void vbus_fet_on(cy_stc_pdstack_context_t *context)
                  * shut down. We should not disable sink here in this case.
                  */
 #if (!((REGULATOR_REQUIRE_STABLE_ON_TIME) && (POWER_BANK)))
-                Cy_USBPD_Vbus_GdrvCfetOff(context->ptrUsbPdContext, false);
                 Cy_SysLib_DelayUs(10);
 #endif /* (!((REGULATOR_REQUIRE_STABLE_ON_TIME) && (POWER_BANK))) */
                 Cy_USBPD_Vbus_GdrvPfetOn(context->ptrUsbPdContext, true);
@@ -189,9 +194,8 @@ static void vbus_fet_on(cy_stc_pdstack_context_t *context)
 #if CCG_PD_DUALPORT_ENABLE
             if(port == TYPEC_PORT_1_IDX)
             {
-                APP_VBUS_SNK_FET_OFF_P2();
                 Cy_SysLib_DelayUs(10);
-                APP_VBUS_SRC_FET_ON_P2();
+                Cy_USBPD_Vbus_GdrvPfetOn(context->ptrUsbPdContext, true);
             }
 #endif /* CCG_PD_DUALPORT_ENABLE */
         }
@@ -209,17 +213,7 @@ static void vbus_fet_off(cy_stc_pdstack_context_t *context)
 #if APP_VBUS_SRC_FET_BYPASS_EN
     Cy_USBPD_BB_Disable(context->ptrUsbPdContext);
 #else /* !APP_VBUS_SRC_FET_BYPASS_EN */
-
-    if(context->port == TYPEC_PORT_0_IDX)
-    {
-        Cy_USBPD_Vbus_GdrvPfetOff(context->ptrUsbPdContext, true);
-    }
-#if CCG_PD_DUALPORT_ENABLE
-    if(context->port == TYPEC_PORT_1_IDX)
-    {
-        APP_VBUS_SRC_FET_OFF_P2();
-    }
-#endif /* CCG_PD_DUALPORT_ENABLE */
+    Cy_USBPD_Vbus_GdrvPfetOff(context->ptrUsbPdContext, true);
 #endif /* APP_VBUS_SRC_FET_BYPASS_EN */
 }
 
@@ -227,31 +221,13 @@ static void vbus_fet_off(cy_stc_pdstack_context_t *context)
 
 void vbus_discharge_on(cy_stc_pdstack_context_t * context)
 {
-    if(context->port == TYPEC_PORT_0_IDX)
-    {
-        Cy_USBPD_Vbus_DischargeOn(context->ptrUsbPdContext);
-    }
-#if CCG_PD_DUALPORT_ENABLE
-    if(context->port == TYPEC_PORT_1_IDX)
-    {
-        APP_DISCHARGE_FET_ON_P2();
-    }
-#endif /* CCG_PD_DUALPORT_ENABLE */
+    Cy_USBPD_Vbus_DischargeOn(context->ptrUsbPdContext);
 
 }
 
 void vbus_discharge_off(cy_stc_pdstack_context_t * context)
 {
-    if(context->port == TYPEC_PORT_0_IDX)
-    {
-        Cy_USBPD_Vbus_DischargeOff(context->ptrUsbPdContext);
-    }
-#if CCG_PD_DUALPORT_ENABLE
-    if(context->port == TYPEC_PORT_1_IDX)
-    {
-        APP_DISCHARGE_FET_OFF_P2();
-    }
-#endif /* CCG_PD_DUALPORT_ENABLE */
+   Cy_USBPD_Vbus_DischargeOff(context->ptrUsbPdContext);
 }
 
 #if (!CY_PD_SINK_ONLY)
@@ -328,15 +304,15 @@ static void psrc_cf_cbk(void * callbackContext, bool state)
 static void psrc_en_cf(cy_stc_pdstack_context_t * context)
 {
 #if CY_PD_VBUS_CF_EN
-    cy_stc_pdstack_dpm_status_t dpm_stat = context->dpmStat;
+    cy_stc_pdstack_dpm_status_t* dpm_stat = &(context->dpmStat);
 
     cy_stc_pdstack_dpm_ext_status_t* ptrDpmExtStat = &(context->dpmExtStat);
 
     app_status_t* app_stat = app_get_status(context->port);
 
-    if (dpm_stat.srcLastRdo.val != dpm_stat.srcCurRdo.val)
+    if (dpm_stat->srcLastRdo.val != dpm_stat->srcCurRdo.val)
     {
-        uint32_t opCur = ((uint32_t)dpm_stat.srcCurRdo.rdo_pps.opCur * 5u); /* In 10mA units */
+        uint32_t opCur = ((uint32_t)dpm_stat->srcCurRdo.rdo_pps.opCur * 5u); /* In 10mA units */
 
         /* Minimum supported limit is 1A. */
         if(opCur < CY_PD_I_1A)
@@ -349,7 +325,7 @@ static void psrc_en_cf(cy_stc_pdstack_context_t * context)
          * maximum allowed by PDP limit. The PDP information is retrieved from
          * the extended source cap information.
          */
-        if ((bool)dpm_stat.srcSelPdo.pps_src.ppsPwrLimited)
+        if ((bool)dpm_stat->srcSelPdo.pps_src.ppsPwrLimited)
         {
             uint32_t limit = (ptrDpmExtStat->extSrcCap[CY_PD_EXT_SRCCAP_PDP_INDEX] * 1000u);
 
@@ -405,7 +381,7 @@ static void psrc_dis_cf(cy_stc_pdstack_context_t * context)
         Cy_PdStack_Dpm_SetCf(context, false);
         app_stat->cur_fb_enabled = false;
 #if !CCG_CF_HW_DET_ENABLE
-        cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_CF_TIMER);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_CF_TIMER));
 #endif /* !CCG_CF_HW_DET_ENABLE */
 #if VBUS_CF_SOFT_START_ENABLE
         VBUS_CTRL_TIMER_Stop();
@@ -457,7 +433,7 @@ static void psrc_fet_on_check_cbk(cy_timer_id_t id, void *callbackContext)
         /* VBUS_IN safe FET ON timeout */
 
         /* Make sure that monitor timer is OFF. */
-        cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID));
 
         /* Turn off VBUS_IN discharge if it was enabled. */
         Cy_USBPD_Vbus_DischargeOff(context->ptrUsbPdContext);
@@ -488,13 +464,13 @@ static void psrc_fet_on_check_cbk(cy_timer_id_t id, void *callbackContext)
         if ((vbus_in_volt > APP_PSOURCE_SAFE_FET_ON_LEVEL_HIGH) || 
             (vbus_in_volt < APP_PSOURCE_SAFE_FET_ON_LEVEL_LOW))
         {
-            (void)cy_sw_timer_start(context->ptrTimerContext,context,APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID),
                     APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_PERIOD, psrc_fet_on_check_cbk);
         }
         else
         {
             /* Make sure that timeout timer is off. */
-            cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_SAFE_FET_ON_TIMER_ID);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_TIMER_ID));
 
             /* Turn off VBUS_IN discharge if it was enabled. */
             Cy_USBPD_Vbus_DischargeOff(context->ptrUsbPdContext);
@@ -526,6 +502,13 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
 {
     cy_stc_pdstack_context_t* context = callbackCtx;
     app_status_t* app_stat = app_get_status(context->port);
+#if CCG_PD_DUALPORT_ENABLE
+    if (context->port != 0u)
+    {
+        /* For Port 1, the 128 needs to be subtracted as port1 timer ids are offseted by 128 by macro  */
+        id = (cy_timer_id_t)((uint16_t)id - 128u);
+    }
+#endif /* CCG_PD_DUALPORT_ENABLE */
 
 #if ((!defined(CY_DEVICE_CCG3PA)) && (!defined(CCG3PA2)) && (!defined(PAG1S)) && (!defined(CY_DEVICE_CCG7D))&& (!defined(CY_DEVICE_CCG7S)))
 #elif REGULATOR_REQUIRE_STABLE_ON_TIME
@@ -543,7 +526,7 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
     {
         case APP_PSOURCE_EN_TIMER:
             /* Supply did not reach expected level. Turn off power and do error recovery. */
-            cy_sw_timer_stop_range(context->ptrTimerContext, APP_PSOURCE_EN_MONITOR_TIMER, APP_PSOURCE_EN_HYS_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_MONITOR_TIMER), GET_APP_TIMER_ID(context,APP_PSOURCE_EN_HYS_TIMER));
             app_stat->psrc_volt_old = CY_PD_VSAFE_0V;
             psrc_shutdown(context, true);
 
@@ -572,13 +555,13 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
                      (vbus_is_present(context, app_stat->psrc_volt, VBUS_DISCHARGE_MARGIN) == false)))
             {
                 /* Start Source enable hysteresis Timer */
-                cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_EN_HYS_TIMER,
+                CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_HYS_TIMER),
                         APP_PSOURCE_EN_HYS_TIMER_PERIOD, app_psrc_tmr_cbk);
                 break;
             }
 
             /* Start Monitor Timer again */
-            cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_EN_MONITOR_TIMER,
+            CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context,  GET_APP_TIMER_ID(context,APP_PSOURCE_EN_MONITOR_TIMER),
                     APP_PSOURCE_EN_MONITOR_TIMER_PERIOD, app_psrc_tmr_cbk);
 #else /* PSVP_FPGA_ENABLE */
             /*
@@ -588,24 +571,24 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
             if(gl_tran_tmr_status == false)
             {
                 gl_tran_tmr_status = true;
-                cy_sw_timer_start(context->ptrTimerContext, NULL, APP_TIMER_RESERVED_127, TRAN_FIXED_DELAY_MS, NULL);
+                CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, NULL, GET_APP_TIMER_ID(context,APP_TIMER_RESERVED_127), TRAN_FIXED_DELAY_MS, NULL);
                 /* Start Monitor Timer again */
-                cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_EN_MONITOR_TIMER,
+                CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_MONITOR_TIMER),
                         APP_PSOURCE_EN_MONITOR_TIMER_PERIOD, app_psrc_tmr_cbk);
             }
             else
             {
-                if(cy_sw_timer_is_running(context->ptrTimerContext, APP_TIMER_RESERVED_127) == false)
+                if(CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_TIMER_RESERVED_127)) == false)
                 {
                     gl_tran_tmr_status = false;
                     /* Start Source enable hysteresis Timer */
-                    cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_EN_HYS_TIMER,
+                    CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_HYS_TIMER),
                             APP_PSOURCE_EN_HYS_TIMER_PERIOD, app_psrc_tmr_cbk);
                 }
                 else
                 {
                     /* Start Monitor Timer again */
-                    cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_EN_MONITOR_TIMER,
+                    CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_MONITOR_TIMER),
                             APP_PSOURCE_EN_MONITOR_TIMER_PERIOD, app_psrc_tmr_cbk);
                 }
             }
@@ -623,7 +606,7 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
             if (stat1 != false)
             {
                 /* Start Source enable hysteresis Timer */
-                (void)cy_sw_timer_start(context->ptrTimerContext,context,APP_PSOURCE_EN_HYS_TIMER,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_HYS_TIMER),
                         APP_PSOURCE_EN_HYS_TIMER_PERIOD, app_psrc_tmr_cbk);
             }
             break;   
@@ -632,12 +615,12 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
 
         case APP_PSOURCE_EN_HYS_TIMER:
 #if REGULATOR_REQUIRE_STABLE_ON_TIME
-            if (cy_sw_timer_is_running(context->ptrTimerContext, APP_PSOURCE_EN_MONITOR_TIMER))
+            if (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_MONITOR_TIMER)))
             {
                 return;
             }
 #endif /* REGULATOR_REQUIRE_STABLE_ON_TIME */           
-            cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_EN_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_TIMER));
             app_stat->psrc_volt_old = app_stat->psrc_volt;
             vbus_discharge_off(context);
 
@@ -670,7 +653,7 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
             if (app_stat->cur_fb_enabled)
             {
 #if !CCG_CF_HW_DET_ENABLE
-                (void)cy_sw_timer_start(context->ptrTimerContext,context,APP_PSOURCE_CF_TIMER,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_PSOURCE_CF_TIMER),
                         APP_PSOURCE_CF_TIMER_PERIOD, app_psrc_tmr_cbk);
 #else /* CCG_CF_HW_DET_ENABLE */
                 Cy_USBPD_CF_Mon_Enable(context->ptrUsbPdContext, context->dpmStat.curFb, psrc_cf_cbk);
@@ -690,7 +673,7 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
 
         case APP_PSOURCE_DIS_TIMER:
             /* Discharge operation timed out. */
-            cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_DIS_MONITOR_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_DIS_MONITOR_TIMER));
             psrc_shutdown(context, true);
             break;
 
@@ -705,21 +688,21 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
             if (vbus_is_present(context, CY_PD_VSAFE_0V, VBUS_TURN_ON_MARGIN) == false)
             {
                 /* Start Extra discharge to allow proper discharge below Vsafe0V */
-                (void)cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_DIS_EXT_DIS_TIMER,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_DIS_EXT_DIS_TIMER),
                         APP_PSOURCE_DIS_EXT_DIS_TIMER_PERIOD,
                         app_psrc_tmr_cbk);
             }
             else
             {
                 /* Start Monitor Timer again */
-                (void)cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_DIS_MONITOR_TIMER,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_DIS_MONITOR_TIMER),
                         APP_PSOURCE_DIS_MONITOR_TIMER_PERIOD,
                         app_psrc_tmr_cbk);
             }
             break;
 
         case APP_PSOURCE_DIS_EXT_DIS_TIMER:
-            cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_DIS_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_DIS_TIMER));
             vbus_discharge_off(context);
 
             /* Notify the caller that psrc_disable is complete. */
@@ -737,7 +720,7 @@ void app_psrc_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
                  * calling, it is being called from this timer interrupt handler.
                  */
                 Cy_PdStack_Dpm_PpsTask(context);
-                (void)cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_CF_TIMER,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_CF_TIMER),
                         APP_PSOURCE_CF_TIMER_PERIOD,
                             app_psrc_tmr_cbk);
             }
@@ -793,7 +776,7 @@ bool app_psrc_vbus_ocp_cbk(void * callbackCtx, bool compOut)
      * transition complete to process the SCP hard reset sequence. 
      * Also disable all other fault detection by calling psource shutdown.
      */
-    cy_sw_timer_stop_range(context->ptrTimerContext, APP_PSOURCE_EN_TIMER, APP_PSOURCE_EN_HYS_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_TIMER), GET_APP_TIMER_ID(context,APP_PSOURCE_EN_HYS_TIMER));
     if(port == TYPEC_PORT_0_IDX)
     {
 #if HX3PD_DS2_OCP_HANDLING_WORKAROUND
@@ -867,7 +850,7 @@ bool app_psrc_vbus_scp_cbk(void * callbackCtx,  bool compOut)
      * transition complete to process the SCP hard reset sequence. 
      * Also disable all other fault detection by calling psource shutdown.
      */ 
-    cy_sw_timer_stop_range(context->ptrTimerContext, APP_PSOURCE_EN_TIMER, APP_PSOURCE_EN_HYS_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_TIMER), GET_APP_TIMER_ID(context,APP_PSOURCE_EN_HYS_TIMER));
     call_psrc_ready_cbk(context);
 
     /* SCP fault. */
@@ -997,13 +980,29 @@ bool app_psrc_vbus_ovp_cbk(void *callbackCtx,bool compOut)
 }
 #endif /* ((VBUS_OVP_ENABLE) || (VBUS_UVP_ENABLE)) */
 
+#if APP_VBUS_SRC_FET_BYPASS_EN
+void app_psrc_npf_bb_check_cb(cy_timer_id_t id,  void * callbackCtx)
+{
+    cy_stc_pdstack_context_t* context = callbackCtx;
+
+    if(Cy_USBPD_BB_IsReady(context->ptrUsbPdContext) == false)
+    {
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context, APP_PSOURCE_VBUS_SRC_FET_BYPASS_TIMER_ID), REGULATOR_STAT_MON_TIME_MS, app_psrc_npf_bb_check_cb);
+    }
+    else
+    {
+        psrc_select_voltage(context);
+    }
+}
+#endif /* APP_VBUS_SRC_FET_BYPASS_EN */
+
 void psrc_select_voltage(cy_stc_pdstack_context_t *context)
 {
     uint8_t port = context->port;
 #if (!HIGHER_VOLTAGES_SUPP_DISABLE)
     app_status_t *app_stat = app_get_status(port);
 #if VBUS_OFFSET_VOLTAGE_ENABLE
-    pwr_params_t *ptr = pd_get_ptr_pwr_tbl(port);
+    pwr_params_t *ptr = pd_get_ptr_pwr_tbl(context->ptrUsbPdContext);
 #endif /* VBUS_OFFSET_VOLTAGE_ENABLE */
 
 #if CCG_PROG_SOURCE_ENABLE
@@ -1020,7 +1019,7 @@ void psrc_select_voltage(cy_stc_pdstack_context_t *context)
      * Add Vbus offset voltage.
      * Vbus offset is not applicable for PPS supply type.
      */
-    if(context->dpmStat->srcSelPdo.src_gen.supplyType != CY_PDSTACK_PDO_AUGMENTED)
+    if(context->dpmStat.srcSelPdo.src_gen.supplyType != CY_PDSTACK_PDO_AUGMENTED)
     {
         select_volt += ptr->vbus_offset_volt ;
     }
@@ -1045,7 +1044,7 @@ void psrc_select_voltage(cy_stc_pdstack_context_t *context)
     if(port == TYPEC_PORT_0_IDX)
     {
 #if NCP_MANAGEMENT
-        (void)cy_sw_timer_start(context->ptrTimerContext, context, NCP_VOLTCHANGE_DELAY_ID,NCP_VOLTCHANGE_DELAY_PERIOD,ncp_manage_cbk);
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, NCP_VOLTCHANGE_DELAY_ID,NCP_VOLTCHANGE_DELAY_PERIOD,ncp_manage_cbk);
 #else
         APP_VBUS_SET_VOLT_P1(context, select_volt);
 #endif /* NCP_MANAGEMENT */
@@ -1053,7 +1052,7 @@ void psrc_select_voltage(cy_stc_pdstack_context_t *context)
 #if CCG_PD_DUALPORT_ENABLE
     else
     {
-       APP_VBUS_SET_VOLT_P2(select_volt);
+       APP_VBUS_SET_VOLT_P2(context,select_volt);
     }
 #endif /* CCG_PD_DUALPORT_ENABLE */
 
@@ -1367,7 +1366,16 @@ void psrc_set_voltage(cy_stc_pdstack_context_t * context, uint16_t volt_mV)
         }
     }
 
-    psrc_select_voltage(context);
+#if APP_VBUS_SRC_FET_BYPASS_EN
+    if(Cy_USBPD_BB_IsReady(context->ptrUsbPdContext) == false)
+    {
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context, APP_PSOURCE_VBUS_SRC_FET_BYPASS_TIMER_ID), REGULATOR_STAT_MON_TIME_MS, app_psrc_npf_bb_check_cb);
+    }
+    else
+#endif /* APP_VBUS_SRC_FET_BYPASS_EN */
+    {
+        psrc_select_voltage(context);
+    }
 }
 
 uint32_t psrc_get_voltage (cy_stc_pdstack_context_t *context)
@@ -1474,9 +1482,6 @@ static void psrc_ff_ov_cbk(cy_stc_pdstack_context_t * context)
 #endif /* PASC_FF_OV_ENABLE */
 
 #if ((defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) && REGULATOR_REQUIRE_STABLE_ON_TIME)
-/* Regulator enable status monitor interval */
-#define REGULATOR_STAT_MON_TIME_MS         (1u)
-
 /* This functions checks if regulator is ready or not. */
 static void app_reg_stat_mon_tmr_cbk(cy_timer_id_t id, void *callbackContext)
 {
@@ -1484,7 +1489,7 @@ static void app_reg_stat_mon_tmr_cbk(cy_timer_id_t id, void *callbackContext)
     if(Cy_USBPD_BB_IsReady(context->ptrUsbPdContext) == false)
     {
         /* Regulator is not yet stable, start monitor timer */
-        (void)cy_sw_timer_start(context->ptrTimerContext, context, (uint8_t)APP_PSOURCE_REGULATOR_MON_TIMER,
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_REGULATOR_MON_TIMER),
             REGULATOR_STAT_MON_TIME_MS, app_reg_stat_mon_tmr_cbk);
     }
     else
@@ -1528,11 +1533,11 @@ void psrc_enable (cy_stc_pdstack_context_t * context,
     Cy_SysLib_DelayUs (200);
 #endif /* ((ICL_ENABLE) && (PROCHOT_SUPP)) */
 
-    cy_sw_timer_stop_range(context->ptrTimerContext, APP_PSOURCE_EN_TIMER, APP_PSOURCE_DIS_EXT_DIS_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_TIMER), GET_APP_TIMER_ID(context,APP_PSOURCE_DIS_EXT_DIS_TIMER));
 
 #if APP_PSOURCE_SAFE_FET_ON_ENABLE
-    cy_sw_timer_stop_range(context->ptrTimerContext, (uint8_t)APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID,
-        (uint8_t)APP_PSOURCE_SAFE_FET_ON_TIMER_ID);
+    CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID),
+            GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_TIMER_ID));
 #endif /* APP_PSOURCE_SAFE_FET_ON_ENABLE */
 
     /* Turn on FETs only if dpm is enabled and there is no active fault condition. */
@@ -1556,15 +1561,15 @@ void psrc_enable (cy_stc_pdstack_context_t * context,
              * taken care of by additional status check.
              */
 #if (!(defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)))
-            (void)cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_EN_MONITOR_TIMER, REGULATOR_TURN_ON_DELAY, app_psrc_tmr_cbk);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, APP_PSOURCE_EN_MONITOR_TIMER, REGULATOR_TURN_ON_DELAY, app_psrc_tmr_cbk);
 #endif /* (!(defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))) */
         }
 
 #if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))
-        cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_REGULATOR_MON_TIMER);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_REGULATOR_MON_TIMER));
         if (Cy_USBPD_BB_IsReady(context->ptrUsbPdContext) == false)
         {
-            (void)cy_sw_timer_start(context->ptrTimerContext, context, (uint8_t)APP_PSOURCE_REGULATOR_MON_TIMER,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_REGULATOR_MON_TIMER),
                 REGULATOR_STAT_MON_TIME_MS, app_reg_stat_mon_tmr_cbk);
         }
         else
@@ -1615,12 +1620,12 @@ void psrc_enable (cy_stc_pdstack_context_t * context,
             app_stat->pwr_ready_cbk = pwr_ready_handler;
 
             /* Start Power source enable and monitor timers */
-            (void)cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_EN_TIMER,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_TIMER),
                     APP_PSOURCE_EN_TIMER_PERIOD, app_psrc_tmr_cbk);
 
 #if ((!defined(CY_DEVICE_CCG3PA)) && (!defined(CY_DEVICE_CCG3PA2)) && (!defined(CY_DEVICE_PAG1S)) && (!defined(CY_DEVICE_CCG7D)) && (!defined(CY_DEVICE_CCG7S)))
             /* For CCG3PA/CCG3PA2/PAG1S APP_PSOURCE_EN_MONITOR_TIMER is not required */
-            (void)cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_EN_MONITOR_TIMER,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_MONITOR_TIMER),
                     APP_PSOURCE_EN_MONITOR_TIMER_PERIOD, app_psrc_tmr_cbk);
 #endif /* ((!defined(CY_DEVICE_CCG3PA)) && (!defined(CY_DEVICE_CCG3PA2)) && (!defined(CY_DEVICE_PAG1S)) && (!defined(CY_DEVICE_CCG7D)) && (!defined(CY_DEVICE_CCG7S))) */
 
@@ -1662,7 +1667,7 @@ void psrc_disable(cy_stc_pdstack_context_t * context, cy_pdstack_pwr_ready_cbk_t
     }
 #endif /* ((ICL_ENABLE) && (PROCHOT_SUPP)) */
 
-    cy_sw_timer_stop_range(context->ptrTimerContext, APP_PSOURCE_EN_TIMER, APP_PSOURCE_DIS_EXT_DIS_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, APP_PSOURCE_EN_TIMER, APP_PSOURCE_DIS_EXT_DIS_TIMER);
 
 #if CY_PD_PPS_SRC_ENABLE
     psrc_dis_cf(context);
@@ -1711,9 +1716,9 @@ void psrc_disable(cy_stc_pdstack_context_t * context, cy_pdstack_pwr_ready_cbk_t
         app_stat->pwr_ready_cbk = pwr_ready_handler;
 
         /*Start Power source enable and monitor timer*/
-        (void)cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_DIS_TIMER,
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_DIS_TIMER),
                 APP_PSOURCE_DIS_TIMER_PERIOD, app_psrc_tmr_cbk);
-        (void)cy_sw_timer_start(context->ptrTimerContext, context, APP_PSOURCE_DIS_MONITOR_TIMER,
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_PSOURCE_DIS_MONITOR_TIMER),
                 APP_PSOURCE_DIS_MONITOR_TIMER_PERIOD, app_psrc_tmr_cbk);
     }
     else
@@ -1826,8 +1831,8 @@ static void psrc_shutdown(cy_stc_pdstack_context_t * context, bool discharge_dis
 #endif /* CY_PD_PPS_SRC_ENABLE */
 
 #if APP_PSOURCE_SAFE_FET_ON_ENABLE
-    cy_sw_timer_stop_range(context->ptrTimerContext, (uint8_t)APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID,
-        (uint8_t)APP_PSOURCE_SAFE_FET_ON_TIMER_ID);
+    CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext,GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_MONITOR_TIMER_ID),
+        GET_APP_TIMER_ID(context,APP_PSOURCE_SAFE_FET_ON_TIMER_ID));
 #endif /* APP_PSOURCE_SAFE_FET_ON_ENABLE */
 
 #if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))
@@ -1837,7 +1842,7 @@ static void psrc_shutdown(cy_stc_pdstack_context_t * context, bool discharge_dis
      */
 #if REGULATOR_REQUIRE_STABLE_ON_TIME
     Cy_USBPD_BB_Disable(context->ptrUsbPdContext);
-    cy_sw_timer_stop(context->ptrTimerContext, (uint8_t)APP_PSOURCE_REGULATOR_MON_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_REGULATOR_MON_TIMER));
 #endif /* REGULATOR_REQUIRE_STABLE_ON_TIME */
 #endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) */
 }
@@ -1858,7 +1863,7 @@ void psrc_en_ovp(cy_stc_pdstack_context_t * context)
 void psrc_en_rcp(cy_stc_pdstack_context_t * context)
 {
 #if VBUS_RCP_ENABLE
-    if (get_pd_port_config(port)->protection_enable & CFG_TABLE_RCP_EN_MASK)
+    if (pd_get_ptr_rcp_tbl(context->ptrUsbPdContext)->enable)
     {
         system_vbus_rcp_en (port, app_psrc_vbus_rcp_cbk);
     }

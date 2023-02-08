@@ -1,15 +1,16 @@
 /******************************************************************************
 * File Name: system.h
+* \version 2.0
 *
 * Description: Header file for boot and flash write support
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 #ifndef SYSTEM_H_

@@ -1,23 +1,20 @@
-/***************************************************************************//**
-* \file psink.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   psink.c
+* \version 2.0
 *
-* Power Sink (Consumer) manager source file 
+* Description: Power Sink (Consumer) manager source file
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
-
 #if CY_PD_SINK_ONLY
 #include <psink.h>
 #include <app.h>
-#include <cy_sw_timer.h>
-#include <cy_sw_timer_id.h>
+#include <cy_pdutils_sw_timer.h>
+#include <app_timer_id.h>
 #include "cy_usbpd_vbus_ctrl.h"
 #include "srom.h"
 #include "config.h"
@@ -355,21 +352,21 @@ static void app_psnk_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
     switch(id)
     {
         case APP_PSINK_DIS_TIMER:
-            cy_sw_timer_stop(context->ptrTimerContext, APP_PSINK_DIS_MONITOR_TIMER);
+            Cy_PdUtils_SwTimer_Stop(context->ptrTimerContext, APP_PSINK_DIS_MONITOR_TIMER);
             Cy_USBPD_Vbus_DischargeOff(context->ptrUsbPdContext);
             break;
 
         case APP_PSINK_DIS_MONITOR_TIMER:
             if(vbus_is_present(context, CY_PD_VSAFE_5V, 0) == false)
             {
-                cy_sw_timer_stop(context->ptrTimerContext, APP_PSINK_DIS_TIMER);
+                Cy_PdUtils_SwTimer_Stop(context->ptrTimerContext, APP_PSINK_DIS_TIMER);
                 Cy_USBPD_Vbus_DischargeOff(context->ptrUsbPdContext);
                 app_stat->snk_dis_cbk(context);
             }
             else
             {
                 /*Start Monitor Timer again*/
-                cy_sw_timer_start(context->ptrTimerContext, context, APP_PSINK_DIS_MONITOR_TIMER, APP_PSINK_DIS_MONITOR_TIMER_PERIOD, app_psnk_tmr_cbk);
+                CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, APP_PSINK_DIS_MONITOR_TIMER, APP_PSINK_DIS_MONITOR_TIMER_PERIOD, app_psnk_tmr_cbk);
             }
             break;
         default:
@@ -408,7 +405,7 @@ void psnk_disable (cy_stc_pdstack_context_t * context, cy_pdstack_sink_discharge
     gl_psnk_enabled[port] = gl_psnk_enabled[port];
 
     Cy_USBPD_Vbus_DischargeOff(context->ptrUsbPdContext);
-    cy_sw_timer_stop_range(context->ptrTimerContext, APP_PSINK_DIS_TIMER, APP_PSINK_DIS_MONITOR_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, APP_PSINK_DIS_TIMER, APP_PSINK_DIS_MONITOR_TIMER);
 
     if ((snk_discharge_off_handler != NULL) && (context->dpmConfig.dpmEnabled))
     {
@@ -417,8 +414,8 @@ void psnk_disable (cy_stc_pdstack_context_t * context, cy_pdstack_sink_discharge
         app_stat->snk_dis_cbk = snk_discharge_off_handler;
 
         /* Start Power source enable and monitor timer. */
-        cy_sw_timer_start(context->ptrTimerContext, context, APP_PSINK_DIS_TIMER, APP_PSINK_DIS_TIMER_PERIOD, app_psnk_tmr_cbk);
-        cy_sw_timer_start(context->ptrTimerContext, context, APP_PSINK_DIS_MONITOR_TIMER, APP_PSINK_DIS_MONITOR_TIMER_PERIOD, app_psnk_tmr_cbk);
+        CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, APP_PSINK_DIS_TIMER, APP_PSINK_DIS_TIMER_PERIOD, app_psnk_tmr_cbk);
+        CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context, APP_PSINK_DIS_MONITOR_TIMER, APP_PSINK_DIS_MONITOR_TIMER_PERIOD, app_psnk_tmr_cbk);
     }
 #if ((VBUS_IN_DISCHARGE_EN) && (POWER_BANK))
     else

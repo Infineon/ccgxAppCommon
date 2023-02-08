@@ -1,23 +1,21 @@
-/***************************************************************************//**
-* \file uvdm.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   uvdm.h
+* \version 2.0
 *
-* Unstructured VDM handler header file.
+* Description: Unstructured VDM handler header file.
 * These definitions correspond to an unstructured VDM based protocol
 * implementation that Cypress devices use to facilitate firmware or
 * configuration updates over the CC lines.
 *
+* Related Document: See README.md
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -31,7 +29,10 @@
 /*****************************************************************************
 * MACRO Definition
 *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 #define UVDM_RESPONSE_MAX_NO_OF_VDO             (0x07u)  /**< Maximum number of VDOs in U_VDM response. */
 #define UVDM_HEADER_INDEX                       (0x00u)  /**< VDM Header index in U_VDM Response. */
 #define UVDM_SIGNATURE_BYTE_OFFSET              (0x00u)  /**< U_VDM commands signature byte offset. */
@@ -108,10 +109,13 @@
 
 #define CCG_STATUS_TO_HPI_RESPONSE(c)   ((c) + CCG_STATUS_CODE_OFFSET) /**< Convert CCG status code to HPI/UVDM response code. */
 
+/** \} group_ccgxAppCommon_macros */
 /*****************************************************************************
 * Enumerated Data Definition
 *****************************************************************************/
-
+/** \addtogroup group_ccgxAppCommon_enums
+* \{
+*/
 /**
  * @typedef uvdm_cmd_opcode_t
  * @brief List of opcodes supported in Cypress Flashing Alternate Mode U_VDMs.
@@ -175,10 +179,15 @@ typedef enum
     UVDM_QC_GET_CHARGER_TYPE = 0x0C03,      /**< QC 5.0/4.0 Get Charger Type opcode. */
     UVDM_QC_GET_CHARGER_VERSION = 0x0E03    /**< QC 5.0/4.0 Get Charger Version opcode. */
 } uvdm_qc_pps_cmd_t;
-
+/** \} group_ccgxAppCommon_enums */
 /*****************************************************************************
 * Global Function Declaration
 *****************************************************************************/
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
+
 
 /**
  * @brief Returns current non blocking command opcode.
@@ -273,7 +282,7 @@ uvdm_response_state_t uvdm_qc_pps_handler(cy_stc_pdstack_context_t *ptrPdStackCo
  */
 uvdm_response_state_t sln_flashing_uvdm_handler(uint32_t *rx_pkt, cy_pd_pd_do_t *vdm_rspn_pkt,
     uint8_t *vdo_count, cy_en_pdstack_status_t *response_code);
-
+/** \} group_ccgxAppCommon_functions */
 #endif /* UVDM_H_ */
 
 /** \} group_ccgxAppCommon */

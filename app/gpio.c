@@ -1,18 +1,15 @@
-/***************************************************************************//**
-* \file gpio.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   gpio.c
+* \version 2.0
 *
-* This is GPIO and IO mapping control functions source file
+* Description: GPIO and IO mapping control functions
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2022-2023 Cypress Semiconductor $
 *******************************************************************************/
-
 #include "stdint.h"
 #include "stdbool.h"
 #include "gpio.h"
@@ -20,7 +17,7 @@
 #include "cy_usbpd_regs.h"
 
 #define GPIO_PRT_PC_PORT_VTRIP_SEL                          ((uint32_t)1u << 24) /* <24:24> R:RW:0: */ /* <24:24> R:RW:0: */
-
+#if (!(SROM_CODE_SYS_GPIO))
 #if (!(SROM_CODE_SYS_GPIO))
 
 #ifdef PAG1S
@@ -345,5 +342,5 @@ cy_en_pdstack_status_t gpio_register_intr_cb(uint8_t port, gpio_intr_cb_t intr_c
 
     return (ret);
 }
-
+#endif /* (SROM_CODE_SYS_GPIO) */
 /* [] END OF FILE */

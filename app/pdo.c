@@ -1,22 +1,20 @@
-/***************************************************************************//**
-* \file pdo.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   pdo.c
+* \version 2.0
 *
-* PDO evaluation and handler functions 
+* Description: PDO evaluation and handler functions.
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include "config.h"
 #include "cy_pdstack_common.h"
 #include "cy_pdstack_dpm.h"
-#include "cy_pdstack_utils.h"
+#include "cy_pdutils.h"
 #include "pdo.h"
 #include "app.h"
 #include "srom.h"
@@ -52,7 +50,7 @@ ATTRIBUTES_APP_PDO static uint32_t calc_power(uint32_t voltage, uint32_t current
        Current is expressed in 10 mA units.
        Power should be expressed in 250 mW units.
        */
-    return (CALL_MAP(div_round_up)(voltage * current, 500));
+    return (Cy_PdUtils_DivRoundUp(voltage * current, 500));
 }
 
 #if !DISABLE_PDO_BATTERY && !PDO_SNK_BATTERY_SUPP_DISABLE
@@ -63,7 +61,7 @@ ATTRIBUTES_APP_PDO static uint32_t calc_current(uint32_t power, uint32_t voltage
        Voltage is expressed in 50 mV units.
        Current should be expressed in 10 mA units.
        */
-    return (CALL_MAP(div_round_up)(power * 500, voltage));
+    return (Cy_PdUtils_DivRoundUp(power * 500, voltage));
 }
 #endif /* !DISABLE_PDO_BATTERY && PDO_SNK_BATTERY_SUPP */
 
@@ -98,13 +96,13 @@ pd_do_t* ucsi_change_pdo_power(uint8_t port, uint8_t power, uint8_t is_src, uint
     /* Take the number of PDOs and the list from the configuration table */
     if(is_src == 1)
     {
-        pdo_cnt = get_pd_port_config(port)->src_pdo_cnt;
-        cur_pdo = (pd_do_t*)get_pd_port_config(port)->src_pdo_list;
+        pdo_cnt = get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->srcPdoCount;
+        cur_pdo = (pd_do_t*)get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->defSrcPdoMask;
     }
     else
     {
-        pdo_cnt = get_pd_port_config(port)->snk_pdo_cnt;
-        cur_pdo = (pd_do_t*)get_pd_port_config(port)->snk_pdo_list;
+        pdo_cnt = get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->snkPdoCount;
+        cur_pdo = (pd_do_t*)get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->defSnkPdoMask;
     }
 
     for(i = 0; i < pdo_cnt; i++)
@@ -176,7 +174,7 @@ ATTRIBUTES_APP_PDO static bool is_src_acceptable_snk(cy_stc_pdstack_context_t* c
         case CY_PDSTACK_PDO_FIXED_SUPPLY:  /* Fixed supply PDO */
             fix_volt = pdo_src->fixed_src.voltage;
 
-            maxVolt = div_round_up(fix_volt, 20);
+            maxVolt = Cy_PdUtils_DivRoundUp(fix_volt, 20);
             minVolt = fix_volt - maxVolt;
             maxVolt = fix_volt + maxVolt;
 
@@ -545,7 +543,7 @@ ATTRIBUTES_APP_PDO void eval_src_cap(cy_stc_pdstack_context_t* context, const cy
         /* Capability mismatch: Ask for vsafe5v PDO with CapMismatch */
         gl_contract_voltage[port] = snkPdo[0].fixed_snk.voltage;
         gl_op_cur_power[port] = snkPdo[0].fixed_snk.opCurrent;
-        gl_contract_power[port] = div_round_up(
+        gl_contract_power[port] = Cy_PdUtils_DivRoundUp(
                 gl_contract_voltage[port] * gl_op_cur_power[port], 500u);
 
         if(src_vsafe5_cur < gl_op_cur_power[port])
@@ -705,7 +703,7 @@ void app_update_rdo (uint8_t port, const pd_packet_t* srcCap, app_resp_t *appRes
         /* Capability mismatch: Ask for vsafe5v PDO with CapMismatch */
         CALL_MAP(gl_contract_voltage)[port] = snkPdo[0].fixed_snk.voltage;
         CALL_MAP(gl_op_cur_power)[port] = snkPdo[0].fixed_snk.opCurrent;
-        CALL_MAP(gl_contract_power)[port] = CALL_MAP(div_round_up)(
+        CALL_MAP(gl_contract_power)[port] = CALL_MAP(CY_PDUTILS_DIV_ROUND_UP)(
                 CALL_MAP(gl_contract_voltage)[port] * CALL_MAP(gl_op_cur_power)[port], 500u);
 
         if(src_vsafe5_cur < CALL_MAP(gl_op_cur_power)[port])
@@ -788,7 +786,7 @@ uint8_t hpi_user_reg_handler(uint16_t addr, uint8_t size, uint8_t *data)
         hpi_init_userdef_regs (addr, size, data);
 
         dpm_stat = dpm_get_info (port);
-        rdo.val  = MAKE_DWORD(data[3], data[2], data[1], data[0]);
+        rdo.val  = CY_PDUTILS_MAKE_DWORD(data[3], data[2], data[1], data[0]);
 
         /* Operation is only valid if we are a sink and PD contract exists. */
         if ((dpm_stat->contractExist != 0) && (dpm_stat->curPortRole == PRT_ROLE_SINK) &&

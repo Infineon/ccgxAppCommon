@@ -1,18 +1,3 @@
-/***************************************************************************//**
-* \file vbus_idac_ctrl.h
-* \version 1.1.0 
-*
-* VBUS IDAC control header file.
-*
-*
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
-*******************************************************************************/
-
 #ifndef _VBUS_IDAC_CTRL_H_
 #define _VBUS_IDAC_CTRL_H_
 
@@ -26,7 +11,12 @@
  *****************************************************************************/
  
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
+* \{
+*/
+
+/**
+* \addtogroup group_ccgxAppCommon_functions
 * \{
 */
 
@@ -108,7 +98,7 @@ bool vbus_ctrl_set_is_idle(cy_stc_pdstack_context_t * context);
  * <B>Applicable devices:</B> CCG3PA, CCG3PA2, PAG1S, CCG7D, CCG7S.
  */
 int16_t vbus_ctrl_get_trim_idac(cy_stc_usbpd_context_t * context, uint16_t volt_mv);
-
+/** \} group_ccgxAppCommon_functions */
 #endif /* _VBUS_IDAC_CTRL_H_ */
 
 /** \} group_ccgxAppCommon */

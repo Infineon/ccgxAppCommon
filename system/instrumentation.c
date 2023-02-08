@@ -1,5 +1,6 @@
 /******************************************************************************
 * File Name: instrumentation.c
+* \version 2.0
 *
 * Description: Source file containing application instrumentation definitions
 *
@@ -10,7 +11,7 @@
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include "instrumentation.h"
@@ -93,7 +94,7 @@ void watchdog_timer_cb (
     }
 #if !WATCHDOG_OVER_POLL_TIMER
     /* Start the timer again. */
-    cy_sw_timer_start (pdstack_port0_ctx.ptrTimerContext, NULL, WATCHDOG_TIMER_ID, WATCHDOG_RESET_PERIOD_MS, watchdog_timer_cb);
+    Cy_PdUtils_SwTimer_Start(pdstack_port0_ctx.ptrTimerContext, NULL, WATCHDOG_TIMER_ID, WATCHDOG_RESET_PERIOD_MS, watchdog_timer_cb);
 #endif /* !WATCHDOG_OVER_POLL_TIMER */
 }
 
@@ -191,7 +192,7 @@ void instrumentation_start(void)
 #if RESET_ON_ERROR_ENABLE
 #if !WATCHDOG_OVER_POLL_TIMER
     /* Start the timer used for watchdog reset. */
-    cy_sw_timer_start (pdstack_port0_ctx.ptrTimerContext, NULL,  WATCHDOG_TIMER_ID, WATCHDOG_RESET_PERIOD_MS, watchdog_timer_cb);
+    Cy_PdUtils_SwTimer_Start (pdstack_port0_ctx.ptrTimerContext, NULL,  WATCHDOG_TIMER_ID, WATCHDOG_RESET_PERIOD_MS, watchdog_timer_cb);
 #endif /* !WATCHDOG_OVER_POLL_TIMER */
 #endif /* RESET_ON_ERROR_ENABLE */
 

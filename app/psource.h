@@ -1,20 +1,17 @@
-/***************************************************************************//**
-* \file psource.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name: psource.c
+* \version 2.0
 *
-* Power source (Provider) manager header file.
+* Description: Power source (Provider) manager header file.
 *
+* Related Document: See README.md
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -30,12 +27,21 @@
 #include <psink.h>
 #endif /* CY_PD_SINK_ONLY */
 #include <app.h>
-#include <cy_sw_timer.h>
-#include <cy_sw_timer_id.h>
+#include <cy_pdutils_sw_timer.h>
+#include <app_timer_id.h>
 #include "cy_usbpd_vbus_ctrl.h"
 
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 #define PPS_CF_VBUS_DECREMENT_STEP     (200u)   /**< VBUS decrement value on each Current foldback event */
 
+/** \} group_ccgxAppCommon_macros */
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /*****************************************************************************
  * Global Function Declaration
  *****************************************************************************/
@@ -103,6 +109,7 @@ void psrc_enable (cy_stc_pdstack_context_t * context,
 void psrc_disable(cy_stc_pdstack_context_t * context,
         cy_pdstack_pwr_ready_cbk_t pwr_ready_handler);
 
+/** \} group_ccgxAppCommon_functions */
 /** \} group_ccgxAppCommon */
 
 #endif /* _PSOURCE_H_ */

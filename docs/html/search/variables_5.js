@@ -1,11 +1,22 @@
 var searchData=
 [
-  ['get_5fpdstack_5fcontext',['Get_PdStack_Context',['../structapp__sln__handler__t.html#ac7e0a94145d4d5feed970ec0bc75006a',1,'app_sln_handler_t']]],
-  ['gl_5factive_5ffw',['gl_active_fw',['../group__group__ccgxAppCommon.html#ga574f405ef4ef66e82b34bd7fbe117b9f',1,'gl_active_fw():&#160;system.c'],['../group__group__ccgxAppCommon.html#ga574f405ef4ef66e82b34bd7fbe117b9f',1,'gl_active_fw():&#160;system.c']]],
-  ['gl_5fimg1_5ffw_5fmetadata',['gl_img1_fw_metadata',['../group__group__ccgxAppCommon.html#ga85a9c9e60bdf6a05fcb7fdba90406a1c',1,'gl_img1_fw_metadata():&#160;boot.c'],['../group__group__ccgxAppCommon.html#ga85a9c9e60bdf6a05fcb7fdba90406a1c',1,'gl_img1_fw_metadata():&#160;boot.c']]],
-  ['gl_5fimg1_5ffw_5fpseudo_5fmetadata',['gl_img1_fw_pseudo_metadata',['../group__group__ccgxAppCommon.html#ga977a6217be08fd77b2dd8ba0bc82e9c5',1,'gl_img1_fw_pseudo_metadata():&#160;boot.c'],['../group__group__ccgxAppCommon.html#ga977a6217be08fd77b2dd8ba0bc82e9c5',1,'gl_img1_fw_pseudo_metadata():&#160;boot.c']]],
-  ['gl_5fimg2_5ffw_5fmetadata',['gl_img2_fw_metadata',['../group__group__ccgxAppCommon.html#ga6e6dccbc6cb6e0410853a38bdcccb6af',1,'gl_img2_fw_metadata():&#160;boot.c'],['../group__group__ccgxAppCommon.html#ga6e6dccbc6cb6e0410853a38bdcccb6af',1,'gl_img2_fw_metadata():&#160;boot.c']]],
-  ['gl_5fimg2_5ffw_5fpseudo_5fmetadata',['gl_img2_fw_pseudo_metadata',['../group__group__ccgxAppCommon.html#ga58312a28a5af18f3fe3f5e5673d13855',1,'gl_img2_fw_pseudo_metadata():&#160;boot.c'],['../group__group__ccgxAppCommon.html#ga58312a28a5af18f3fe3f5e5673d13855',1,'gl_img2_fw_pseudo_metadata():&#160;boot.c']]],
-  ['gl_5fimg_5fstatus',['gl_img_status',['../group__group__ccgxAppCommon.html#gaec2fd46b2891d6b8cb7aad1d2dac6fd3',1,'gl_img_status():&#160;boot.c'],['../group__group__ccgxAppCommon.html#gaec2fd46b2891d6b8cb7aad1d2dac6fd3',1,'gl_img_status():&#160;boot.c']]],
-  ['gl_5finvalid_5fversion',['gl_invalid_version',['../group__group__ccgxAppCommon.html#ga861ab3087452424e2b5e9396766ac014',1,'gl_invalid_version():&#160;system.c'],['../group__group__ccgxAppCommon.html#ga861ab3087452424e2b5e9396766ac014',1,'gl_invalid_version():&#160;system.c']]]
+  ['fault_5factive',['fault_active',['../structdpm__status__t.html#aa81778ddf37f6d48b1d44bdd87dedfc8',1,'dpm_status_t']]],
+  ['fault_5fstatus',['fault_status',['../group__group__ccgxAppCommon__data__structures.html#a95481e8ce67e925f5fcdefee2f0f8256',1,'app_status_t']]],
+  ['fixed_5fbats',['fixed_bats',['../group__group__ccgxAppCommon__data__structures.html#a235106323bfeb429eb28cce712eeeb37',1,'pd_do_t::ROM_ADO_ALERT']]],
+  ['fixed_5fsnk',['fixed_snk',['../group__group__ccgxAppCommon__data__structures.html#a8143b90f1c2126c70e6d55ec5fc48056',1,'pd_do_t']]],
+  ['fixed_5fsrc',['fixed_src',['../group__group__ccgxAppCommon__data__structures.html#a2cb4932df5aa22fc7e8bbd7d7dbe95c9',1,'pd_do_t']]],
+  ['fr_5frx_5fdisabled',['fr_rx_disabled',['../structdpm__status__t.html#a6a3ab05e711e1ab00bc0356b336f4bad',1,'dpm_status_t']]],
+  ['fr_5frx_5fen_5flive',['fr_rx_en_live',['../structdpm__status__t.html#afa6239f5a186bdb531f5307c924f7237',1,'dpm_status_t']]],
+  ['fr_5fswap',['fr_swap',['../group__group__ccgxAppCommon__data__structures.html#a7d9a2e20a1b42c99f1af45b7a643a77a',1,'pd_do_t::ROM_FIXED_SNK']]],
+  ['fr_5ftx_5fdisabled',['fr_tx_disabled',['../structdpm__status__t.html#a64346db04960da966042ec79410360c3',1,'dpm_status_t']]],
+  ['fr_5ftx_5fen_5flive',['fr_tx_en_live',['../structdpm__status__t.html#a7c5d26756c06f3808244129c00f40b1d',1,'dpm_status_t']]],
+  ['frs_5fenable',['frs_enable',['../structdpm__status__t.html#a6a07c6738a947b88d8466f8d9a8e56a3',1,'dpm_status_t']]],
+  ['frs_5frx_5fen',['frs_rx_en',['../structdpm__status__t.html#a6b153e2a4820d73128c320f6bda19c97',1,'dpm_status_t']]],
+  ['frs_5ftx_5fen',['frs_tx_en',['../structdpm__status__t.html#ad8dedd4f9e99c79f1024e32dd826ca07',1,'dpm_status_t']]],
+  ['fw1_5finvalid',['fw1_invalid',['../group__group__ccgxAppCommon__data__structures.html#aea283bd75c9af62fbad8c5763c63aa43',1,'fw_img_status_t::fw_mode_reason_t']]],
+  ['fw2_5finvalid',['fw2_invalid',['../group__group__ccgxAppCommon__data__structures.html#ab7b8524592e8068e4c07f624b60dd97b',1,'fw_img_status_t::fw_mode_reason_t']]],
+  ['fw_5fchecksum',['fw_checksum',['../group__group__ccgxAppCommon__data__structures.html#a0ef33b8320d56f4e1297543f66aea255',1,'sys_fw_metadata_t']]],
+  ['fw_5fentry',['fw_entry',['../group__group__ccgxAppCommon__data__structures.html#a02801268b70a818bbe6946579e75316d',1,'sys_fw_metadata_t']]],
+  ['fw_5fsize',['fw_size',['../group__group__ccgxAppCommon__data__structures.html#a94164d6018969fc42383facf2eea9241',1,'sys_fw_metadata_t']]],
+  ['fw_5fversion',['fw_version',['../group__group__ccgxAppCommon__data__structures.html#a595c9bef832cf16866373325d39b5e91',1,'sys_fw_metadata_t']]]
 ];

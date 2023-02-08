@@ -1,16 +1,13 @@
-/***************************************************************************//**
-* \file sensor_check.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name: sensor_check.c
+* \version 2.0
 *
-* Vin and temperature based throttling source file.
+* Description: Vin and temperature based throttling source file.
 *
+* Related Document: See README.md
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include <config.h>
@@ -19,27 +16,27 @@
 #include <cy_pdstack_dpm.h>
 #include <pdo.h>
 #include <app.h>
-#include <cy_sw_timer.h>
+#include <cy_pdutils_sw_timer.h>
 #include <sensor_check.h>
 #include "srom.h"
 #include "psource.h"
 #include <thermistor.h>
 #include "cy_usbpd_vbus_ctrl.h"
 #include "cy_gpio.h"
-#include "cy_pdstack_utils.h"
+#include "cy_pdutils.h"
 #include "cy_usbpd_config_table.h"
 #include "srom_dependency.h"
 #if (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || VIN_OVP_ENABLE || VIN_UVP_ENABLE)
 extern app_sln_handler_t *solution_fn_handler;
 #endif /* (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || VIN_OVP_ENABLE || VIN_UVP_ENABLE) */
 
-#if !(CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_HPI_AUTO_CMD_ENABLE)
+#if !(CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_HPI_AUTO_CMD_ENABLE || CCG_LOAD_SHARING_ENABLE)
 operating_condition_t ccg_power_throttle_get_oc_ec(cy_stc_pdstack_context_t *ptrPdStackContext)
 {
     (void)ptrPdStackContext;
     return SYSTEM_OC_1;
 }
-#endif /* #if !(CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_HPI_AUTO_CMD_ENABLE) */
+#endif /* #if !(CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_HPI_AUTO_CMD_ENABLE || CCG_LOAD_SHARING_ENABLE) */
 
 #if CCG_TEMP_BASED_VOLTAGE_THROTTLING
 
@@ -402,7 +399,7 @@ static uint8_t ccg_get_battery_oc(uint8_t port)
 
         gl_vin_uv_enable[port] = true;
 
-        Cy_USBPD_Fault_VinUvpEn(ptrPdStackcontext->ptrUsbPdContext, threshold, soln_vin_ovp_uvp_cbk, CCG_SRC_FET, VIN_UVP_MODE);
+        Cy_USBPD_Fault_VinUvpEn(ptrPdStackcontext->ptrUsbPdContext, threshold, soln_vin_ovp_uvp_cbk, CCG_SRC_FET, (cy_en_usbpd_vbus_uvp_mode_t)VIN_UVP_MODE);
     }
 #endif /* VIN_UVP_ENBALE */
 
@@ -431,20 +428,13 @@ void ccg_throttle_cb(cy_stc_pdstack_context_t *ptrPdStackcontext, uint8_t power)
 static void soln_vin_ovp_uvp_cbk(void *callbackContext, bool state)
 {
     cy_stc_pdstack_context_t *context;
-    PPDSS_REGS_T pd;
 
     uint8_t vin_oc;
     uint8_t idx;
 
-    uint32_t regval[NO_OF_TYPEC_PORTS];
-
     for(idx = TYPEC_PORT_0_IDX; idx < NO_OF_TYPEC_PORTS; idx++)
     {
         context = solution_fn_handler->Get_PdStack_Context(idx);
-        pd = context->ptrUsbPdContext->base;
-
-        /* Read the current interrupt status before disabling Vin UV OV for registering blackbox event. */
-        regval[idx] = pd->intr17_masked;
 
         /* First disable the FET. Then handle and disable protection. */
         psrc_disable(context, NULL);
@@ -498,12 +488,13 @@ static void soln_vin_ovp_uvp_cbk(void *callbackContext, bool state)
 
     for(idx = TYPEC_PORT_0_IDX; idx < NO_OF_TYPEC_PORTS; idx++)
     {
-        if ((regval[idx] & PDSS_INTR17_MASKED_PDBB_PWM_VIN_UV_DET_MASKED) != 0u)
+        context = solution_fn_handler->Get_PdStack_Context(idx);
+
+        if (state == false)
         {
             app_event_handler(context, APP_EVT_VIN_UVP_FAULT, NULL);
         }
-
-        if ((regval[idx] & PDSS_INTR17_MASKED_PDBB_PWM_VIN_OV_DET_MASKED) != 0u)
+        else
         {
             app_event_handler(context, APP_EVT_VIN_OVP_FAULT, NULL);
         }
@@ -627,7 +618,7 @@ void ccg_sensor_debounce_task(cy_stc_pdstack_context_t *ptrPdStackcontext)
 
             if(gl_sensor_debounce_count[port] != 0u)
             {
-                (void)cy_sw_timer_start(ptrPdStackcontext->ptrTimerContext, ptrPdStackcontext, THROTTLE_TIMER_ID, THROTTLE_DEBOUNCE_PERIOD,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackcontext->ptrTimerContext, ptrPdStackcontext,  GET_APP_TIMER_ID(ptrPdStackcontext,THROTTLE_TIMER_ID), THROTTLE_DEBOUNCE_PERIOD,
                                                 ccg_debounce_cb);
             }
         }
@@ -659,7 +650,7 @@ void ccg_sensor_check(cy_stc_pdstack_context_t *ptrPdStackcontext)
             gl_sensor_debounce_count[port] = THROTTLE_DEBOUNCE_VALUE;
             gl_debouncing[port] = true;
             gl_debounce_oc[port] = (operating_condition_t)new_oc;
-            (void)cy_sw_timer_start(ptrPdStackcontext->ptrTimerContext, ptrPdStackcontext, THROTTLE_TIMER_ID, THROTTLE_DEBOUNCE_PERIOD,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackcontext->ptrTimerContext, ptrPdStackcontext, GET_APP_TIMER_ID(ptrPdStackcontext,THROTTLE_TIMER_ID), THROTTLE_DEBOUNCE_PERIOD,
                                             ccg_debounce_cb);
         }
     }
@@ -754,7 +745,7 @@ cy_en_pdstack_status_t ccg_sensor_temp_ec(cy_stc_pdstack_context_t *ptrPdStackco
     {
         sensor_data_t *sensor_cfg = &(pd_get_ptr_auto_cfg_tbl(ptrPdStackcontext->ptrUsbPdContext)->sensor_data[0]);
         uint8_t idx, sensor_information[TEMPERATURE_SENSOR_COUNT];
-       mem_set(sensor_information, 0xFF, sizeof(sensor_information));
+       CY_PDUTILS_MEM_SET(sensor_information, 0xFF, sizeof(sensor_information));
 #if (TEMPERATURE_SENSOR_COUNT > 1u)
         for(idx = 0; idx < TEMPERATURE_SENSOR_COUNT; idx++)
 #else
@@ -775,7 +766,7 @@ cy_en_pdstack_status_t ccg_sensor_temp_ec(cy_stc_pdstack_context_t *ptrPdStackco
         /* We will copy the temperature information of the thermistor/sensor
          * to the buffer address passed to the function by the EC. 
          */
-        MEM_COPY(buffer, sensor_information, TEMPERATURE_SENSOR_COUNT * sizeof(uint8_t));
+        CY_PDUTILS_MEM_COPY(buffer, sensor_information, TEMPERATURE_SENSOR_COUNT * sizeof(uint8_t));
         status = CY_PDSTACK_STAT_SUCCESS;
     }
 #else

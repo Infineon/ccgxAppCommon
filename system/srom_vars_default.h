@@ -1,12 +1,13 @@
 /******************************************************************************
 * File Name: srom_vars_default.h
+* \version 2.0
 *
 * Description: SROM Code default header file.
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #ifndef SROM_VARS_DEFAULT_H_

@@ -1,12 +1,13 @@
 /******************************************************************************
 * File Name: system.c
+* \version 2.0
 *
 * Description: Source file for boot and flash write support
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include "stdbool.h"

@@ -1,15 +1,16 @@
 /******************************************************************************
-* File Name: boot.c
+* File Name: fw_update.h
+* \version 2.0
 *
 * Description: Firmware Update Header File
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -20,7 +21,7 @@
 #include <string.h>
 
 #include "flash.h"
-#include "cy_pdstack_utils.h"
+#include "cy_pdutils.h"
 #include "system.h"  
 #include "boot.h"
 
@@ -36,7 +37,10 @@
 /*******************************************************************************
  * FWCT Data Structures and Definitions 
  ******************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 /** FWCT Table size*/
 #define CCG_FWCT_TABLE_SIZE             (104u)
 
@@ -78,7 +82,11 @@
     
 /** Invalid row numer is used to check against the read row number given to validate it.*/
 #define FLASH_INVALID_ROW_NUMBER        (0xFFFFu)
+/** \} group_ccgxAppCommon_macros */
 
+/** \addtogroup group_ccgxAppCommon_enums
+* \{
+*/
 /** Enum to index the array for FWCT row number.*/
 typedef enum
 {
@@ -126,7 +134,7 @@ typedef enum
     SHA256_RSA2048 = 0,
     SHA256_uECC
 }crypto_algo_t;
-
+/** \} group_ccgxAppCommon_enums */
 /** Macro to indicate type of crypto algorithm used  */
 #define CRYPTO_ALGORITHM_USED           (SHA256_RSA2048)
 

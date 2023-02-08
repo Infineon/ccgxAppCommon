@@ -1,5 +1,6 @@
 /******************************************************************************
 * File Name:   i2c.h
+* \version 2.0
 *
 * Description: I2C slave driver header file.
 *
@@ -7,10 +8,10 @@
 *
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -21,9 +22,13 @@
 #include <stdbool.h>
 #include <config.h>
 #include "cy_pdstack_common.h"
-#include "cy_sw_timer.h"
-#include "cy_sw_timer_id.h"
+#include "cy_pdutils_sw_timer.h"
+#include "app_timer_id.h"
 
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 /**
    @brief Number of I2C blocks supported by the device.
 
@@ -101,6 +106,12 @@
 /**< Timeout period for I2C transfers in milliseconds. The I2C block will be reset
      if any transaction does not complete within this time period. */
 
+/** \} group_ccgxAppCommon_macros */
+
+/** \addtogroup group_ccgxAppCommon_enums
+* \{
+*/
+
 /**
  * @typedef i2c_scb_state_t
  * @brief List of possible I2C block states.
@@ -162,7 +173,11 @@ typedef enum
     I2C_CB_CMD_TIMEOUT,                 /**< Timeout on I2C operation. */
     I2C_CB_SLAVE_ADDR_MATCH             /**< I2C slave address match detected. */
 } i2c_cb_cmd_t;
+/** \} group_ccgxAppCommon_enums */
 
+/** \addtogroup group_ccgxAppCommon_data_structures
+* \{
+*/
 /**
  * @typedef i2c_cb_fun_t
  * @brief I2C callback function for interrupt notifications.
@@ -191,7 +206,11 @@ typedef struct i2c_scb_config
     i2c_cb_fun_t                cb_fun_ptr;             /**< Callback function pointer. */
     volatile uint16_t           i2c_write_count;        /**< Current index into receive buffer. */
 } i2c_scb_config_t;
-
+/** \} group_ccgxAppCommon_data_structures */
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief Configure one of the I2C blocks as required.
  *
@@ -358,7 +377,7 @@ typedef void(*i2c_scb_enable_wakeup_fptr)(uint8_t scb_index);
 typedef void(*i2c_timer_cb_fptr)(uint8_t instance, cy_timer_id_t id);
 
 /** @endcond */
-
+/** \} group_ccgxAppCommon_functions */
 #endif /* I2C_H_ */
 
 /** \} group_ccgxAppCommon */

@@ -1,15 +1,16 @@
 /******************************************************************************
 * File Name: boot.h
+* \version 2.0
 *
 * Description: Source file for boot functions
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 #ifndef BOOT_H_
@@ -21,12 +22,15 @@
 #include "cy_pdstack_common.h"
 #include "system.h"
 #include "cy_flash.h"
-#include "cy_pdstack_utils.h"
+#include "cy_pdutils.h"
 
 /*****************************************************************************
 * MACRO Definition
 *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 #define CY_PD_IMG1_FW_STATUS_BIT_MASK                   (0x08)
 /**< Mask for Image-1 FW status bit in Boot mode reason byte. */
 
@@ -62,11 +66,13 @@
 #define CONFIGTABLE_SIZE_OFFSET         (6u)             /**< Offset to table size field in config table. */
 #define CONFIGTABLE_CHECKSUM_OFFSET     (8u)             /**< Offset to checksum field in config table. */
 #define CONFIGTABLE_CHECKSUM_START      (12u)            /**< Offset at which table checksum calculation starts. */
-
+/** \} group_ccgxAppCommon_macros */
 /*****************************************************************************
 * Data Struct Definition
 *****************************************************************************/
-
+/** \addtogroup group_ccgxAppCommon_data_structures
+* \{
+*/
 /**
  * @brief Boot mode reason structure.
  *
@@ -135,7 +141,7 @@ typedef struct __attribute__((__packed__))
                                                FW copy that has the higher sequence number associated with it. */
 } sys_fw_metadata_t;
 #endif /* USE_CYACD2_METADATA_FORMAT */
-
+/** \} group_ccgxAppCommon_data_structures */
 
 /*****************************************************************************
 * Global Variable Declaration
@@ -165,7 +171,10 @@ extern fw_img_status_t gl_img_status;                   /**< Current firmware im
 /*****************************************************************************
 * Global Function Declaration
 *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief Validate the configuration table specified.
  *
@@ -327,7 +336,7 @@ void boot_update_fw_status(void);
  * @return None
  */
 void boot_jump_to_app(uint32_t appId);
-
+/** \} group_ccgxAppCommon_functions */
 #endif /* BOOT_H_ */
 
 /** \} group_ccgxAppCommon */

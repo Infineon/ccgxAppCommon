@@ -1,5 +1,8 @@
 var searchData=
 [
-  ['mux_5fselect_5ft',['mux_select_t',['../group__group__ccgxAppCommon.html#ga8b1a30fd54c54d07259ea52e0c3ea200',1,'app.h']]],
-  ['mux_5fstatus_5ft',['mux_status_t',['../group__group__ccgxAppCommon.html#ga28ca7d6bdea64e62f33e874641a230a0',1,'app.h']]]
+  ['i2c_5fcb_5fcmd_5ft',['i2c_cb_cmd_t',['../group__group__ccgxAppCommon__enums.html#ga459a4d34fea4545cb049bcbc0aa2924c',1,'i2c.h']]],
+  ['i2c_5fscb_5fclock_5ffreq_5ft',['i2c_scb_clock_freq_t',['../group__group__ccgxAppCommon__enums.html#ga39039019bd1c23cdc1d45a1bf0ea8b74',1,'i2c.h']]],
+  ['i2c_5fscb_5fmode_5ft',['i2c_scb_mode_t',['../group__group__ccgxAppCommon__enums.html#ga929dc6e6ed7bb0e330bcbd1285acc0d1',1,'i2c.h']]],
+  ['i2c_5fscb_5fstate_5ft',['i2c_scb_state_t',['../group__group__ccgxAppCommon__enums.html#gacebb36a46a6b7abb6d95ff1847116864',1,'i2c.h']]],
+  ['inst_5fevt_5ft',['inst_evt_t',['../group__group__ccgxAppCommon__enums.html#ga8c1472d4978873442e3b2040b9279c7b',1,'instrumentation.h']]]
 ];

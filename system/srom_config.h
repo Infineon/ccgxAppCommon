@@ -1,12 +1,13 @@
 /******************************************************************************
 * File Name: srom_config.h
+* \version 2.0
 *
 * Description: SROM Code configuration file.
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #ifndef SROM_CONFIG_H_
@@ -74,7 +75,8 @@
 #endif /* (!CC_BOOT || I2C_BOOT) */
 #endif /* !CCG_BOOT */
 #endif /* GENERATE_SROM_CODE */
-#elif defined(CY_DEVICE_CCG7D)  
+
+#elif (defined(CY_DEVICE_CCG7D)  && (!defined(CY_DEVICE_SERIES_WLC1)))
 #define CCG7D_SROM_CODE_ENABLE  (1u)
 #define SROM_CODE_PD_PD         (0u)
 #if GENERATE_SROM_CODE
@@ -116,6 +118,52 @@
 #endif /* (!CC_BOOT || I2C_BOOT) */    
 #endif /* !CCG_BOOT */
 #endif /* GENERATE_SROM_CODE */
+
+
+#elif defined(CY_DEVICE_SERIES_WLC1)
+#define CCG7D_SROM_CODE_ENABLE  (1u)
+#define SROM_CODE_PD_PD         (0u)
+#if GENERATE_SROM_CODE
+#define SROM_CODE_APP_PDO       (0u)
+#define SROM_CODE_PD_PD         (0u)
+#define SROM_CODE_PD_PE         (0u)
+#define SROM_CODE_PD_PROT       (0u)
+#define SROM_CODE_SYS_BOOT      (0u)
+#define SROM_CODE_SYS_SYS       (0u)
+#define SROM_CODE_SCB_I2C       (1u)
+#define SROM_CODE_SYS_GPIO      (1u)
+#define SROM_CODE_SYS_FLASH     (0u)
+#define SROM_CODE_CRYPTO        (1u)
+#define SROM_CODE_HPISS_HPI     (1u)
+#else
+#if !CCG_BOOT
+#define SROM_CODE_APP_PDO       (0u)
+#define SROM_CODE_PD_PD         (0u)
+#define SROM_CODE_PD_PE         (0u)
+#define SROM_CODE_PD_PROT       (0u)
+#define SROM_CODE_SYS_BOOT      (0u)
+#define SROM_CODE_SYS_SYS       (0u)
+#define SROM_CODE_SCB_I2C       (1u)
+#define SROM_CODE_SYS_GPIO      (1u)
+#define SROM_CODE_SYS_FLASH     (0u)
+#define SROM_CODE_CRYPTO        (1u)
+#define SROM_CODE_HPISS_HPI     (0u)
+#else /* CCG_BOOT */
+#define SROM_CODE_CRYPTO        (0u)
+#define SROM_CODE_SYS_GPIO      (1u)
+#define SROM_CODE_SYS_FLASH     (0u)
+#define SROM_CODE_HPISS_HPI     (1u)
+/*
+ * This is a temporary hack to allow the CC bootloader to build for the
+ * RSC project and allow the RSE project to build and use the CC + I2C Bootloader.
+ */
+#if (!CC_BOOT || I2C_BOOT)
+#define SROM_CODE_SCB_I2C       (1u)
+#endif /* (!CC_BOOT || I2C_BOOT) */
+#endif /* !CCG_BOOT */
+#endif /* GENERATE_SROM_CODE */
+
+
 
 #else /* ! (CY_DEVICE_CCG7S || CY_DEVICE_CCG7D || CCG6) */
 #error "Selected Device does not support SROM code."

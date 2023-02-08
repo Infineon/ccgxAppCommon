@@ -1,18 +1,19 @@
 /******************************************************************************
 * File Name: flash.h
+* \version 2.0
 *
 * Description: Flash handler source file
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include "stdint.h"
 #include "stdbool.h"
 #include <config.h>
-#include <cy_pdstack_utils.h>
+#include <cy_pdutils.h>
 #include <cy_pdstack_common.h>
 #include <system.h>
 #include <boot.h>
@@ -555,6 +556,8 @@ ATTRIBUTES_SYS_FLASH static cy_en_pdstack_status_t flash_blocking_row_write(uint
         stat = flash_trig_row_write_in_place (row_num, data, is_sflash);
     }
     else
+#else
+    CY_UNUSED_PARAMETER(is_sflash);
 #endif /* (!CCG_BOOT) */
     {
 #if ((CCG_HPI_ENABLE) && (!CCG_BOOT) && (!SYS_BLACK_BOX_ENABLE))
@@ -836,7 +839,7 @@ ATTRIBUTES_SYS_FLASH cy_en_pdstack_status_t flash_row_read(uint16_t row_num, uin
         return CY_PDSTACK_STAT_INVALID_ARGUMENT;
     }
 
-    mem_copy (data, (const uint8_t *)(row_num << CCG_FLASH_ROW_SHIFT_NUM), CY_FLASH_SIZEOF_ROW);
+    CY_PDUTILS_MEM_COPY (data, (const uint8_t *)(row_num << CCG_FLASH_ROW_SHIFT_NUM), CY_FLASH_SIZEOF_ROW);
     return CY_PDSTACK_STAT_SUCCESS;
 }
 
@@ -961,7 +964,7 @@ cy_en_pdstack_status_t sflash_row_read(uint16_t row_num, uint8_t* data)
 
     if (row_num < CY_SFLASH_NUMBER_USERROWS)
     {
-        mem_copy (data, src_addr, CY_FLASH_SIZEOF_ROW);
+        CY_PDUTILS_MEM_COPY (data, src_addr, CY_FLASH_SIZEOF_ROW);
         ret = CY_PDSTACK_STAT_SUCCESS;
     }
 #endif /* (CY_SFLASH_NUMBER_USERROWS != 0) */

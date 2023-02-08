@@ -1,12 +1,15 @@
 var searchData=
 [
-  ['skip_5fmux_5fconfig',['skip_mux_config',['../group__group__ccgxAppCommon.html#ac6282b5c48b52b1400bf89d23c47c4b8',1,'app_status_t']]],
-  ['slave_5faddress',['slave_address',['../group__group__ccgxAppCommon.html#a23f8ad3f4ee39bab05e1fcad201b30ee',1,'i2c_scb_config_t']]],
-  ['slave_5fmask',['slave_mask',['../group__group__ccgxAppCommon.html#adb4813a9ea1010593c0301e07b22357d',1,'i2c_scb_config_t']]],
-  ['sln_5fpd_5fevent_5fhandler',['sln_pd_event_handler',['../structapp__sln__handler__t.html#a52ed1000801e4dc81be85e5410c532a9',1,'app_sln_handler_t']]],
-  ['snk_5fdis_5fcbk',['snk_dis_cbk',['../group__group__ccgxAppCommon.html#a8251a6a124e91a512c25fd34dccdd513',1,'app_status_t']]],
-  ['state',['state',['../group__group__ccgxAppCommon.html#ac83e5ba916f89ad8ccae8616f8ff78c2',1,'bc_dp_dm_state_t']]],
-  ['status',['status',['../group__group__ccgxAppCommon.html#a40bf87946c2741c25deb6b7fa55546e7',1,'fw_img_status_t']]],
-  ['svid',['sVid',['../group__group__ccgxAppCommon.html#a7322bfc658c96e696d72af5f23480a69',1,'vdm_info_config_t']]],
-  ['svidlength',['sVidLength',['../group__group__ccgxAppCommon.html#a9c3ce0813f0940369ddcf31e3a320215',1,'vdm_info_config_t']]]
+  ['obj_5fpos',['obj_pos',['../group__group__ccgxAppCommon__data__structures.html#a0e9aca40f47cedd10f493aaea80007b3',1,'pd_do_t::ROM_RDO_FIXED_VAR::obj_pos()'],['../group__group__ccgxAppCommon__data__structures.html#a2b6003713d1cc033fd2a9bb7a4350af2',1,'pd_do_t::ROM_RDO_FIXED_VAR_GIVEBACK::obj_pos()'],['../group__group__ccgxAppCommon__data__structures.html#a66fe7adf8fb61ccf895c9807be4dcfcd',1,'pd_do_t::ROM_RDO_BAT::obj_pos()'],['../group__group__ccgxAppCommon__data__structures.html#ad84b414b8b117f976d848f06398eabc2',1,'pd_do_t::ROM_RDO_BAT_GIVEBACK::obj_pos()'],['../group__group__ccgxAppCommon__data__structures.html#a9619fbc2f6aa927d7eb161da7f238e78',1,'pd_do_t::ROM_RDO_GEN::obj_pos()'],['../group__group__ccgxAppCommon__data__structures.html#abe8f9c05c865123f45b96005f6124cf4',1,'pd_do_t::ROM_RDO_GEN_GVB::obj_pos()'],['../group__group__ccgxAppCommon__data__structures.html#a2c97fb4dd6810069b54c362c1db2b6dd',1,'pd_do_t::ROM_STD_VDM_HDR::obj_pos()'],['../group__group__ccgxAppCommon__data__structures.html#aca353c3c0d54435d9770fa5a76ad8991',1,'pd_do_t::ROM_RDO_PPS::obj_pos()']]],
+  ['ocp',['ocp',['../group__group__ccgxAppCommon__data__structures.html#a0672d9c3c3f306ff2af035b38219e5e0',1,'pd_do_t::ROM_ADO_ALERT']]],
+  ['old_5fdp_5fdm_5fstatus',['old_dp_dm_status',['../group__group__ccgxAppCommon__data__structures.html#a61c614da9f4c74770c083560f43f2457',1,'bc_status_t']]],
+  ['op_5fcond_5fchange',['op_cond_change',['../group__group__ccgxAppCommon__data__structures.html#a8647869a650379d78afc3878cb8d2109',1,'pd_do_t::ROM_ADO_ALERT']]],
+  ['op_5fcur',['op_cur',['../group__group__ccgxAppCommon__data__structures.html#a3110bf7fe87791de45708143c1c4cdbe',1,'pd_do_t::ROM_PPS_SNK::op_cur()'],['../group__group__ccgxAppCommon__data__structures.html#aa987db083dbb8ad0867477253b61a40d',1,'pd_do_t::ROM_RDO_PPS::op_cur()']]],
+  ['op_5fcurrent',['op_current',['../group__group__ccgxAppCommon__data__structures.html#a942fd511793d46ccf45e5ea8b25bfb42',1,'pd_do_t::ROM_FIXED_SNK::op_current()'],['../group__group__ccgxAppCommon__data__structures.html#aaff22f0c12bb03785be32c1f8b331d08',1,'pd_do_t::ROM_VAR_SNK::op_current()'],['../group__group__ccgxAppCommon__data__structures.html#afec711026209c797d26ef8f759398bd7',1,'pd_do_t::ROM_RDO_FIXED_VAR::op_current()'],['../group__group__ccgxAppCommon__data__structures.html#a734a0d394afb7a13f7e7e6c8f56d5237',1,'pd_do_t::ROM_RDO_FIXED_VAR_GIVEBACK::op_current()']]],
+  ['op_5fpower',['op_power',['../group__group__ccgxAppCommon__data__structures.html#a487da9763e3cda088ba4467c953dc6c7',1,'pd_do_t::ROM_BAT_SNK::op_power()'],['../group__group__ccgxAppCommon__data__structures.html#a0459d397882c72a25585ec757b1be197',1,'pd_do_t::ROM_RDO_BAT::op_power()'],['../group__group__ccgxAppCommon__data__structures.html#a9647d6c9313271afc05cb33cc6a87d18',1,'pd_do_t::ROM_RDO_BAT_GIVEBACK::op_power()']]],
+  ['op_5fpower_5fcur',['op_power_cur',['../group__group__ccgxAppCommon__data__structures.html#ad2b2d8034eff1b22bc6f0eacbfcae98d',1,'pd_do_t::ROM_RDO_GEN::op_power_cur()'],['../group__group__ccgxAppCommon__data__structures.html#a2f23307d139689e4a2c9f28cb4d50b5c',1,'pd_do_t::ROM_RDO_GEN_GVB::op_power_cur()']]],
+  ['opt_5fisolated',['opt_isolated',['../group__group__ccgxAppCommon__data__structures.html#a38863ca6480042ea461c28c8451e35ef',1,'pd_do_t::ROM_ACT_CBL_VDO_2']]],
+  ['otp',['otp',['../group__group__ccgxAppCommon__data__structures.html#a3ec2c7812c327832c2a3bfd48c6b7ddd',1,'pd_do_t::ROM_ADO_ALERT']]],
+  ['out_5fvolt',['out_volt',['../group__group__ccgxAppCommon__data__structures.html#aa4f4f4e09b68f67b0055d6c35588f709',1,'pd_do_t::ROM_RDO_PPS']]],
+  ['ovp',['ovp',['../group__group__ccgxAppCommon__data__structures.html#a6e579dce0e277ae1eea61f3037b57afb',1,'pd_do_t::ROM_ADO_ALERT']]]
 ];

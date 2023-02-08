@@ -1,12 +1,13 @@
 /******************************************************************************
 * File Name: boot.c
+* \version 2.0
 *
 * Description: Source file for boot functions
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include "stdint.h"
@@ -105,15 +106,15 @@ uint32_t calculate_crc32(const uint8_t *address, uint32_t length)
 /* Check whether configuration table checksum is good. */
 cy_en_pdstack_status_t boot_validate_configtable(uint8_t *table_p)
 {
-    uint16_t size = MAKE_WORD (table_p[CONFIGTABLE_SIZE_OFFSET + 1u], table_p[CONFIGTABLE_SIZE_OFFSET]);
+    uint16_t size = CY_PDUTILS_MAKE_WORD (table_p[CONFIGTABLE_SIZE_OFFSET + 1u], table_p[CONFIGTABLE_SIZE_OFFSET]);
 
     if (((uint32_t)table_p >= CY_FLASH_SIZE) ||
-            (MAKE_WORD (table_p[1], table_p[0]) != CONFIGTABLE_SIGNATURE))
+            (CY_PDUTILS_MAKE_WORD (table_p[1], table_p[0]) != CONFIGTABLE_SIGNATURE))
     {
         return CY_PDSTACK_STAT_INVALID_FW;
     }
 
-    uint32_t table_crc=MAKE_DWORD(table_p[CONFIGTABLE_CHECKSUM_OFFSET+3],table_p[CONFIGTABLE_CHECKSUM_OFFSET+2],table_p[CONFIGTABLE_CHECKSUM_OFFSET+1],table_p[CONFIGTABLE_CHECKSUM_OFFSET]);
+    uint32_t table_crc=CY_PDUTILS_MAKE_DWORD(table_p[CONFIGTABLE_CHECKSUM_OFFSET+3],table_p[CONFIGTABLE_CHECKSUM_OFFSET+2],table_p[CONFIGTABLE_CHECKSUM_OFFSET+1],table_p[CONFIGTABLE_CHECKSUM_OFFSET]);
 
     if (table_crc != calculate_crc32 (
                     table_p + CONFIGTABLE_CHECKSUM_START, (uint32_t)size - CONFIGTABLE_CHECKSUM_START))
@@ -157,7 +158,7 @@ cy_en_pdstack_status_t boot_validate_fw(sys_fw_metadata_t *fw_metadata)
             (fw_metadata->fw_entry >= (fw_start + fw_size)) ||
             /* QAC suppression 3415: The side effect is not harmful. If the previous checks 
              * do not pass, the firmware is invalid and evaluating checksum is redundant, */
-            (fw_metadata->fw_checksum != mem_calculate_byte_checksum ((uint8_t *)fw_start, fw_size)) /* PRQA S 3415 */
+            (fw_metadata->fw_checksum != CALL_MAP(Cy_PdUtils_MemCalculateByteChecksum) ((uint8_t *)fw_start, fw_size)) /* PRQA S 3415 */
 #endif /* USE_CYACD2_METADATA_FORMAT */
        )
     {
@@ -572,13 +573,13 @@ void boot_check_for_valid_fw(void)
 #endif /* SECURE_FW_UPDATE */
            {
                 /* Read pesudo metadata in a temp buffer. */
-                MEM_COPY ((uint8_t *)temp_fw_pmetadata, (uint8_t *)alt_p_md,
+                CY_PDUTILS_MEM_COPY ((uint8_t *)temp_fw_pmetadata, (uint8_t *)alt_p_md,
                     CCG_METADATA_TABLE_SIZE);
                 temp_fw_pmetadata->metadata_valid = SYS_METADATA_VALID_SIG;
                 temp_fw_pmetadata->boot_seq = (md->boot_seq) + 1;
 #if (SECURE_FW_UPDATE == 1)
                 /* Copy FW HASH in first 32 bytes of pseudo metadata row. */
-                MEM_COPY (temp_pseudo_metadata_buf, (uint8_t *)fw_hash,
+                CY_PDUTILS_MEM_COPY (temp_pseudo_metadata_buf, (uint8_t *)fw_hash,
                     CRYPTO_SHA_2_HASH_SIZE_BYTES);
 #endif /* SECURE_FW_UPDATE */
                 /* This flash write can always be blocking. */
@@ -673,13 +674,13 @@ bool iecs_check_for_valid_fw(uint8_t *first_row)
 #endif /* SECURE_FW_UPDATE */
        {
             /* Read pesudo metadata in a temp buffer. */
-            MEM_COPY ((uint8_t *)temp_fw_pmetadata, (uint8_t *)alt_md, CCG_METADATA_TABLE_SIZE);
+            CY_PDUTILS_MEM_COPY ((uint8_t *)temp_fw_pmetadata, (uint8_t *)alt_md, CCG_METADATA_TABLE_SIZE);
             temp_fw_pmetadata->metadata_valid = SYS_METADATA_VALID_SIG;
             temp_fw_pmetadata->boot_seq = (md->boot_seq) + 1;
 
 #if (SECURE_FW_UPDATE == 1)
             /* Copy FW HASH in first 32 bytes of pseudo metadata row. */
-            MEM_COPY (temp_metadata_buf, (uint8_t *)fw_hash, CRYPTO_SHA_2_HASH_SIZE_BYTES);
+            CY_PDUTILS_MEM_COPY (temp_metadata_buf, (uint8_t *)fw_hash, CRYPTO_SHA_2_HASH_SIZE_BYTES);
 #endif /* SECURE_FW_UPDATE */
             /* This flash write can always be blocking. */
             if (CYRET_SUCCESS == CySysFlashWriteRow (alt_md_row_num, temp_metadata_buf))

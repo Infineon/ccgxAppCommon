@@ -1,16 +1,14 @@
-/***************************************************************************//**
-* \file fault_handlers.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   fault_handlers.c
+* \version 2.0
 *
-* This is PD power related fault handling source file
+* Description: PD power related fault handling source file
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2022-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include "config.h"
@@ -24,14 +22,14 @@
 #include <swap.h>
 #include <vdm.h>
 #include <app.h>
-#include <vdm_task_mngr.h>
-#include <cy_sw_timer.h>
-#include <cy_sw_timer_id.h>
+#include <cy_pdaltmode_vdm_task.h>
+#include <cy_pdutils_sw_timer.h>
+#include <app_timer_id.h>
 #include "cy_usbpd_vbus_ctrl.h"
 #include "cy_usbpd_config_table.h"
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-#include <alt_mode_hw.h>
-#include <alt_modes_mngr.h>
+#include <cy_pdaltmode_hw.h>
+#include <cy_pdaltmode_mngr.h>
 #endif /*(DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
 #if SYS_BLACK_BOX_ENABLE
 #include "blackbox.h"
@@ -53,7 +51,7 @@
 #endif /* CY_CABLE_COMP_ENABLE */
 
 #if DP_UFP_SUPP
-#include <dp_sid.h>
+#include "cy_pdaltmode_dp_sid.h"
 #endif /* DP_UFP_SUPP */
 
 #if RIDGE_SLAVE_ENABLE
@@ -61,6 +59,7 @@
 #include <intel_ridge.h>
 #endif /* RIDGE_SLAVE_ENABLE */
 
+#include "srom.h"
 
 enum
 {
@@ -108,12 +107,12 @@ static void app_ufp_5v_recov_cb(cy_timer_id_t id, void * callbackCtx)
 {
   /* Create app alt mode command to initiate DP related Vconn Swap procedure */
     uint8_t dp_cmd[4]  = {0xA, 0x00, 0x01, 0xFF};
-    uint8_t dp_data[4] = {0x00, 0x00, 0x00, DP_APP_VCONN_SWAP_CFG_CMD};
+    uint8_t dp_data[4] = {0x00, 0x00, 0x00, CY_PDALTMODE_DP_APP_VCONN_SWAP_CFG_CMD};
 
-    if (eval_app_alt_mode_cmd(port, dp_cmd, dp_data) == false)
+    if (Cy_PdAltMode_Mngr_EvalAppAltModeCmd((cy_stc_pdaltmode_context_t *)(((cy_stc_pdstack_context_t *)(callbackCtx))->ptrAltModeContext), dp_cmd, dp_data) == false)
     {
         /* Init Hard reset if DP alt mode not entered */
-        dpm_pd_command (port, DPM_CMD_SEND_HARD_RESET, NULL, NULL);
+        Cy_PdStack_Dpm_SendPdCommand((cy_stc_pdstack_context_t *)callbackCtx, CY_PDSTACK_DPM_CMD_SEND_HARD_RESET, NULL, false, NULL);
     }
     CY_UNUSED_PARAMETER(id);
 }
@@ -167,7 +166,7 @@ void vconn_change_handler(cy_stc_pdstack_context_t * context, bool vconn_on)
 #if DP_UFP_SUPP
         if ((ptrDpmConfig->contractExist) && (ptrDpmConfig->curPortType == CY_PD_PRT_TYPE_DFP))
         {
-            cy_sw_timer_start(context->ptrTimerContext, context,APP_VCONN_RECOVERY_TIMER,
+            CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext, context,GET_APP_TIMER_ID(context,APP_VCONN_RECOVERY_TIMER),
                     APP_UFP_RECOV_VCONN_SWAP_TIMER_PERIOD, app_ufp_5v_recov_cb);
         }
 #endif /* DP_UFP_SUPP */
@@ -198,7 +197,7 @@ static void app_vbat_gnd_scp_retry_cb(cy_timer_id_t id, void * callbackCtx)
      * Take recovery action during configured timeout intervals only.
      */
 
-    if(cy_sw_timer_is_running(context->ptrTimerContext, (cy_timer_id_t)APP_VBAT_GND_SCP_TIMER_ID) == true)
+    if(CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_VBAT_GND_SCP_TIMER_ID)) == true)
     {
         /* Do nothing. Wait until timeout happens to take action */
     }
@@ -249,7 +248,7 @@ static void app_vbat_gnd_scp_retry_cb(cy_timer_id_t id, void * callbackCtx)
                     gl_vbat_gnd_scp_retry_time[port] = VBAT_GND_SCP_RETRY_MAX_PERIOD_S;
                 }
 
-                (void)cy_sw_timer_start(context->ptrTimerContext,context,(cy_timer_id_t)APP_VBAT_GND_SCP_TIMER_ID, 
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_VBAT_GND_SCP_TIMER_ID),
                     (VBAT_GND_SCP_LONG_RETRY_PERIOD_S * 1000u), app_vbat_gnd_scp_retry_cb);
             }
             else
@@ -258,13 +257,13 @@ static void app_vbat_gnd_scp_retry_cb(cy_timer_id_t id, void * callbackCtx)
                     VBAT_GND_SCP_SHORT_RETRY_PERIOD_S))
                 {
                     gl_vbat_gnd_scp_retry_time[port] += VBAT_GND_SCP_SHORT_RETRY_PERIOD_S;
-                    (void)cy_sw_timer_start(context->ptrTimerContext,context, (cy_timer_id_t)APP_VBAT_GND_SCP_TIMER_ID,
+                    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_VBAT_GND_SCP_TIMER_ID),
                         (VBAT_GND_SCP_SHORT_RETRY_PERIOD_S * 1000u), app_vbat_gnd_scp_retry_cb);
                 }
                 else
                 {
                     gl_vbat_gnd_scp_retry_time[port] = VBAT_GND_SCP_RETRY_MAX_PERIOD_S;
-                    (void)cy_sw_timer_start(context->ptrTimerContext,context, (cy_timer_id_t)APP_VBAT_GND_SCP_TIMER_ID,
+                    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_VBAT_GND_SCP_TIMER_ID),
                         (VBAT_GND_SCP_LONG_RETRY_PERIOD_S * 1000u), app_vbat_gnd_scp_retry_cb);
                 }
 
@@ -296,7 +295,7 @@ static void app_vreg_fault_recovery_retry_cb(cy_timer_id_t id, void * callbackCt
     NVIC_SystemReset ();
 }
 
-static void app_vreg_inrush_fault_recovery_retry_cb(cy_timer_id_t id, void * callbackCtx)
+void app_vreg_inrush_fault_recovery_retry_cb(cy_timer_id_t id, void * callbackCtx)
 {
     CY_UNUSED_PARAMETER(id);
     CY_UNUSED_PARAMETER(callbackCtx);
@@ -326,7 +325,7 @@ static void app_vreg_inrush_fault_recovery_retry_cb(cy_timer_id_t id, void * cal
     else
     {
         /* Re-enable the retry timer for next check. */
-        (void)cy_sw_timer_start (pdstack_ctx->ptrTimerContext, pdstack_ctx, (cy_sw_timer_id_t)APP_HAL_GENERIC_TIMER,
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (pdstack_ctx->ptrTimerContext, pdstack_ctx, GET_APP_TIMER_ID(pdstack_ctx,APP_HAL_GENERIC_TIMER),
             APP_VREG_RETRY_TIMER__PERIOD_MS, app_vreg_inrush_fault_recovery_retry_cb);
     }
 }
@@ -385,14 +384,14 @@ bool app_port_fault_count_exceeded(cy_stc_pdstack_context_t * context)
  * Dynamic status is set as long as device is in the fault state.
  * Once the device is out of fault state, status is cleared.
  */
-static uint16_t gl_app_fault_status = 0u;
+static uint16_t gl_app_fault_status[NO_OF_TYPEC_PORTS] = {0u};
 
 uint32_t app_retrieve_fault_status(cy_stc_pdstack_context_t * context)
 {
-    uint16_t status = gl_app_fault_status;
+    uint8_t port = context->port;
+    uint16_t status = gl_app_fault_status[port];
     /* Clear sticky fault status */
-    gl_app_fault_status &= 0x00FFu;
-    CY_UNUSED_PARAMETER(context);
+    gl_app_fault_status[port] &= 0x00FFu;
     return ((uint32_t)status);
 }
 #endif /* CCG_HPI_AUTO_CMD_ENABLE */
@@ -416,7 +415,7 @@ void app_conf_for_faulty_dev_removal(cy_stc_pdstack_context_t * context)
 
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
     /* Make sure any alternate mode related state is cleared. */
-    vdm_task_mngr_deinit (port);
+    Cy_PdAltMode_VdmTask_MngrDeInit (context->ptrAltModeContext);
 #endif /* (DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
 }
 
@@ -509,19 +508,19 @@ static void app_handle_fault(cy_stc_pdstack_context_t * context, uint32_t fault_
     {
         if (((uint32_t)FAULT_TYPE_VBUS_OCP) == fault_type)
         {
-            gl_app_fault_status |= 0x01u;
+            gl_app_fault_status[port] |= 0x01u;
         }
         else if (((uint32_t)FAULT_TYPE_VBUS_OVP) == fault_type)
         {
-            gl_app_fault_status |= 0x02u;
+            gl_app_fault_status[port] |= 0x02u;
         }
         else if (((uint32_t)FAULT_TYPE_VBUS_UVP) == fault_type)
         {
-            gl_app_fault_status |= 0x04u;
+            gl_app_fault_status[port] |= 0x04u;
         }
         else if (((uint32_t)FAULT_TYPE_VBUS_SCP) == fault_type)
         {
-            gl_app_fault_status |= 0x08u;
+            gl_app_fault_status[port] |= 0x08u;
         }
         else
         {
@@ -537,7 +536,7 @@ static void app_handle_fault(cy_stc_pdstack_context_t * context, uint32_t fault_
         {
             /* Start VConn turn-off procedure and start a timer to restore VConn after a delay. */
             vconn_change_handler (context, false);
-            (void)cy_sw_timer_start (context->ptrTimerContext,context, APP_VCONN_RECOVERY_TIMER, APP_VCONN_RECOVERY_PERIOD, vconn_restore_timer_cb);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_VCONN_RECOVERY_TIMER), APP_VCONN_RECOVERY_PERIOD, vconn_restore_timer_cb);
         }
         else
 #endif /* ((VCONN_OCP_ENABLE) || (VCONN_SCP_ENABLE)) */
@@ -548,7 +547,7 @@ static void app_handle_fault(cy_stc_pdstack_context_t * context, uint32_t fault_
              * Disable the port until configured timeout elapses.
              */
             (void)Cy_PdStack_Dpm_Stop(context);
-            (void)cy_sw_timer_start (context->ptrTimerContext,context, APP_FAULT_RECOVERY_TIMER,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_FAULT_RECOVERY_TIMER),
                     FAULT_RETRY_DELAY_MS, fault_delayed_recovery_timer_cb);
             (void)reason;
 #else /* !FAULT_RETRY_DELAY_EN */
@@ -587,7 +586,7 @@ static void app_handle_fault(cy_stc_pdstack_context_t * context, uint32_t fault_
             /* 
              * Start a timer to try infinite fault recovery with a timeout.
              */
-            (void)cy_sw_timer_start (context->ptrTimerContext,context, APP_FAULT_RECOVERY_TIMER,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_FAULT_RECOVERY_TIMER),
                     FAULT_INFINITE_RECOVERY_DELAY_MS, fault_delayed_recovery_timer_cb);
 #endif /* FAULT_INFINITE_RECOVERY_EN */
 
@@ -597,7 +596,7 @@ static void app_handle_fault(cy_stc_pdstack_context_t * context, uint32_t fault_
             {
 #if ICL_SLAVE_ENABLE
                 /* Set into safe state with OCP bit set. */
-                set_mux (context, MUX_CONFIG_SAFE, 0x08);
+                Cy_PdAltMode_HW_SetMux(context->ptrAltModeContext, MUX_CONFIG_SAFE, 0x08);
 #else
                 ridge_slave_set_ocp_status (port);
 #endif /* ICL_SLAVE_ENABLE */
@@ -657,7 +656,7 @@ static void fault_recovery_timer_cb(cy_timer_id_t id, void *context)
     }
 
     /* Restart the timer to check VBus and Rp status again. */
-    (void)cy_sw_timer_start (callbackContext->ptrTimerContext, callbackContext, APP_FAULT_RECOVERY_TIMER, period, fault_recovery_timer_cb);
+    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (callbackContext->ptrTimerContext, callbackContext, GET_APP_TIMER_ID(callbackContext,APP_FAULT_RECOVERY_TIMER), period, fault_recovery_timer_cb);
 }
 
 /* Callback used to get notification that PD port disable has been completed. */
@@ -681,11 +680,11 @@ static void app_port_disable_cb(cy_stc_pdstack_context_t * context, cy_en_pdstac
     }
 
     /* Provide a delay to allow VBus turn-on by port partner and then enable the port. */
-    (void)cy_sw_timer_start (context->ptrTimerContext, context, APP_FAULT_RECOVERY_TIMER, period, fault_recovery_timer_cb);
+    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext, context, GET_APP_TIMER_ID(context, APP_FAULT_RECOVERY_TIMER), period, fault_recovery_timer_cb);
     CY_UNUSED_PARAMETER(resp);
 }
 
-#if (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
 #if (!CY_PD_SINK_ONLY)
 static void src_disable_cbk(cy_stc_pdstack_context_t * context)
 {
@@ -693,7 +692,7 @@ static void src_disable_cbk(cy_stc_pdstack_context_t * context)
     /* Dummy callback used to ensure VBus discharge happens on CC/SBU OVP. */
 }
 #endif /* (!CY_PD_SINK_ONLY) */
-#endif /* defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1) */
+#endif /* defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1) */
 
 #endif /* FAULT_HANDLER_ENABLE */
 
@@ -722,9 +721,9 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
     (void)evt;
 
 #if FAULT_HANDLER_ENABLE
-#if (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
     cy_stc_pd_dpm_config_t * ptrDpmConfig = &(context->dpmConfig);
-#endif /* (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_WLC1)) */
+#endif /* (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_SERIES_WLC1)) */
 
 #if ((VREG_INRUSH_DET_ENABLE) || (VREG_BROWN_OUT_DET_ENABLE))
     uint8_t i;
@@ -757,7 +756,7 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
 
 #if CCG_HPI_AUTO_CMD_ENABLE
             /* Clear only dynamic fault status, that is Byte 0 */
-            gl_app_fault_status &= 0xFF00u;
+            gl_app_fault_status[port] &= 0xFF00u;
 #endif /* CCG_HPI_AUTO_CMD_ENABLE */
             break;
 
@@ -772,7 +771,7 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
 #if VBUS_OCP_ENABLE
         case APP_EVT_VBUS_OCP_FAULT:
 #if CCG_HPI_AUTO_CMD_ENABLE
-            gl_app_fault_status |= 0x0100u;
+            gl_app_fault_status[port] |= 0x0100u;
 #endif /* CCG_HPI_AUTO_CMD_ENABLE */
 
             app_handle_fault(context, FAULT_TYPE_VBUS_OCP);
@@ -782,7 +781,7 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
 #if VBUS_SCP_ENABLE
         case APP_EVT_VBUS_SCP_FAULT:
 #if CCG_HPI_AUTO_CMD_ENABLE
-            gl_app_fault_status |= 0x0800u;
+            gl_app_fault_status[port] |= 0x0800u;
 #endif /* CCG_HPI_AUTO_CMD_ENABLE */
             app_handle_fault(context, FAULT_TYPE_VBUS_SCP);            
             break;
@@ -797,7 +796,7 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
 #if VBAT_GND_SCP_ENABLE
         case APP_EVT_VBAT_GND_SCP_FAULT:
 #if CCG_HPI_AUTO_CMD_ENABLE
-            gl_app_fault_status |= 0x2020u;
+            gl_app_fault_status[port] |= 0x2020u;
 #endif /* CCG_HPI_AUTO_CMD_ENABLE */
             /* Stop DPM and keep port disabled until recovery */
             (void)Cy_PdStack_Dpm_Stop(context);
@@ -810,7 +809,7 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
              * retries with initial few short retries.
              */
             gl_vbat_gnd_scp_status[port] = true;
-            app_vbat_gnd_scp_retry_cb((cy_sw_timer_id_t)APP_VBAT_GND_SCP_TIMER_ID, context);
+            app_vbat_gnd_scp_retry_cb(GET_APP_TIMER_ID(context,APP_VBAT_GND_SCP_TIMER_ID), context);
 #endif /* VBAT_GND_SCP_RECOVERY_ENABLE */
             break;
 #endif /* VBAT_GND_SCP_ENABLE */
@@ -840,10 +839,10 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
              * Start a timer to initiate device soft reset after a short delay
              * as Vreg inrush current is not in valid range for firmware to work.
              */
-            (void)cy_sw_timer_start (context->ptrTimerContext, context, (cy_sw_timer_id_t)APP_HAL_GENERIC_TIMER,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext, context, GET_APP_TIMER_ID(context, APP_HAL_GENERIC_TIMER),
                 APP_VREG_RETRY_TIMER__PERIOD_MS, app_vreg_fault_recovery_retry_cb);
 #elif defined(CY_DEVICE_CCG7S)
-            (void)cy_sw_timer_start (context->ptrTimerContext, context, (cy_sw_timer_id_t)APP_HAL_GENERIC_TIMER,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER),
                 APP_VREG_RETRY_TIMER__PERIOD_MS, app_vreg_inrush_fault_recovery_retry_cb);
 #endif /* defined(CY_DEVICE_CCG7D) */
             break;
@@ -859,12 +858,11 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
                 (void)Cy_PdStack_Dpm_Stop(pdstack_ctx);
             }
 
-            (void)cy_sw_timer_stop(context->ptrTimerContext, (cy_sw_timer_id_t)APP_HAL_GENERIC_TIMER);
             /* 
              * Start a timer to initiate device soft reset after a short delay
              * as VDDD is not in valid range for firmware to work.
              */
-            (void)cy_sw_timer_start (context->ptrTimerContext, context, (cy_sw_timer_id_t)APP_HAL_GENERIC_TIMER,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext, context, GET_APP_TIMER_ID(context,APP_HAL_GENERIC_TIMER),
                 APP_VREG_RETRY_TIMER__PERIOD_MS, app_vreg_fault_recovery_retry_cb);
 
             break;
@@ -873,7 +871,7 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
 #if (UVP_OVP_RECOVERY || VBUS_OVP_ENABLE)
         case APP_EVT_VBUS_OVP_FAULT:
 #if CCG_HPI_AUTO_CMD_ENABLE
-            gl_app_fault_status |= 0x0200u;
+            gl_app_fault_status[port] |= 0x0200u;
 #endif /* CCG_HPI_AUTO_CMD_ENABLE */
             app_handle_fault(context, FAULT_TYPE_VBUS_OVP);
             break;
@@ -888,14 +886,14 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
 #if (UVP_OVP_RECOVERY || VBUS_UVP_ENABLE)
         case APP_EVT_VBUS_UVP_FAULT:
 #if CCG_HPI_AUTO_CMD_ENABLE
-            gl_app_fault_status |= 0x0400u;
+            gl_app_fault_status[port] |= 0x0400u;
 #endif /* CCG_HPI_AUTO_CMD_ENABLE */
             app_handle_fault(context, FAULT_TYPE_VBUS_UVP);
             break;
 #endif /* UVP_OVP_RECOVERY || VBUS_UVP_ENABLE */
 
 #if (!CCG_BACKUP_FIRMWARE)
-#if (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
         case APP_EVT_CC_OVP:
         case APP_EVT_SBU_OVP:
             {
@@ -939,7 +937,7 @@ bool fault_event_handler(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_e
 #endif /* UVP_OVP_RECOVERY || VBUS_OVP_ENABLE */
             }
             break;
-#endif /* defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1)*/
+#endif /* defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_CCG6DF) || defined(CY_DEVICE_CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1)*/
 #endif /* (!CCG_BACKUP_FIRMWARE) */
 
 #if (VCONN_OCP_ENABLE && !DISABLE_FOR_CCG4_DOCK)
@@ -1197,7 +1195,7 @@ void app_uvp_enable(cy_stc_pdstack_context_t * context, uint16_t volt_mV, bool p
 #endif /* CY_PD_PPS_SRC_ENABLE */
         {
 #if CCG4_DOCK
-            (void)cy_sw_timer_start(context->ptrTimerContext,context,VBUS_UVP_TIMER_ID, VBUS_UVP_TIMER_PERIOD, dock_uvp_check);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,VBUS_UVP_TIMER_ID, VBUS_UVP_TIMER_PERIOD, dock_uvp_check);
 #else /* CCG4_DOCK */
             Cy_USBPD_Fault_Vbus_UvpEnable(context->ptrUsbPdContext, volt_mV, uvp_cb, pfet);
 #endif /* CCG4_DOCK */
@@ -1214,7 +1212,7 @@ void app_uvp_disable(cy_stc_pdstack_context_t * context, bool pfet)
     if (GET_VBUS_UVP_TABLE(context->ptrUsbPdContext)->enable != 0u)
     {
 #if CCG4_DOCK
-        cy_sw_timer_stop(context->ptrTimerContext, VBUS_UVP_TIMER_ID);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, VBUS_UVP_TIMER_ID);
 #else /* CCG4_DOCK */
         Cy_USBPD_Fault_Vbus_UvpDisable(context->ptrUsbPdContext, pfet);
 #endif /* CCG4_DOCK */
@@ -1449,7 +1447,7 @@ static void otp_debounce_cb(uint8_t port, timer_id_t id)
                 gl_therm_debounce_count[index] ++;
             }
         }
-        if ((get_pd_port_config(port)->protection_enable & CFG_TABLE_OTP_EN_MASK))
+        if (pd_get_ptr_otp_tbl(ptrPdStackContext->ptrUsbPdContext)->enable)
         {
             gl_otp_sys_debounce_count++;
             if(gl_otp_sys_debounce_count > PD_GET_PTR_OTP_TBL(port)->debounce)
@@ -1565,7 +1563,7 @@ static void otp_debounce_cb(uint8_t port, timer_id_t id)
         }
         if(index == active_thermistors)
         {
-            if ((get_pd_port_config(port)->protection_enable & CFG_TABLE_OTP_EN_MASK))
+            if (pd_get_ptr_otp_tbl(ptrPdStackContext->ptrUsbPdContext)->enable)
             {
                 gl_otp_sys_debounce_count++;
                 if(gl_otp_sys_debounce_count > PD_GET_PTR_OTP_TBL(port)->debounce)
@@ -1647,7 +1645,7 @@ void app_otp_check_temp(cy_stc_pdstack_context_t * context)
 #endif /* (THERMISTOR_COUNT > 1) */
 
     /* Check if OTP has been enabled in the config table */
-    if((get_pd_port_config(port)->protection_enable & CFG_TABLE_OTP_EN_MASK))
+    if(pd_get_ptr_otp_tbl(ptrPdStackContext->ptrUsbPdContext)->enable)
     {
         if(gl_otp_port_disable[port] == false)
         {
@@ -1712,7 +1710,7 @@ static void ccgx_internal_bjt_debounce_cb(uint8_t port, timer_id_t id)
         if(temperature >= app_stat->turn_off_temp_limit)
         {
             gl_otp_debounce_count[port]++;
-            if((get_pd_port_config(port)->protection_enable & CFG_TABLE_OTP_EN_MASK) != 0u)
+            if(pd_get_ptr_otp_tbl(ptrPdStackContext->ptrUsbPdContext)->enable != 0u)
             {
                 if(gl_otp_debounce_count[port] > PD_GET_PTR_OTP_TBL(port)->debounce)
                 {
@@ -1744,7 +1742,7 @@ static void ccgx_internal_bjt_debounce_cb(uint8_t port, timer_id_t id)
         if(temperature < app_stat->turn_on_temp_limit)
         {
             gl_otp_debounce_count[port]++;
-            if((get_pd_port_config(port)->protection_enable & CFG_TABLE_OTP_EN_MASK) != 0u)
+            if(pd_get_ptr_otp_tbl(ptrPdStackContext->ptrUsbPdContext)->enable != 0u)
             {
                 if(gl_otp_debounce_count[port] > PD_GET_PTR_OTP_TBL(port)->debounce)
                 {
@@ -1818,12 +1816,12 @@ void app_otp_enable(uint8_t port)
     }
 #else /* INTERNAL_BJT_BASED_OTP */
 
-    otp_settings_t *ot_settings = PD_GET_PTR_OTP_TBL(port);
+    otp_settings_t *ot_settings = pd_get_ptr_otp_tbl(ptrPdStackContext->ptrUsbPdContext);
     app_status_t *app_stat = app_get_status(port);
     uint8_t idx;
 
     /* Check OTP parameters in the config table. */
-    if (((get_pd_port_config(port)->protection_enable & CFG_TABLE_OTP_EN_MASK) != 0) && 
+    if (((otp_settings->enable) != 0) &&
                 (ot_settings->therm_type == APP_THERMISTOR_TYPE_INTRNL ))
     {   
         app_stat->turn_off_temp_limit = ot_settings->cutoff_val;
@@ -1901,6 +1899,10 @@ void pd_brown_out_fault_handler(void *callbackContext, bool state)
 {
 #if VREG_BROWN_OUT_DET_ENABLE
     uint8_t i;
+    cy_stc_pdstack_context_t *context_0;
+#if defined(CY_DEVICE_CCG7D)
+    cy_stc_pdstack_context_t *context_1;
+#endif /* defined(CY_DEVICE_CCG7D) */
     cy_stc_pdstack_context_t *context;
 
     for (i = 0; i < NO_OF_TYPEC_PORTS; i++)
@@ -1914,22 +1916,34 @@ void pd_brown_out_fault_handler(void *callbackContext, bool state)
 
 #if VREG_INRUSH_DET_ENABLE
         /* Disable inrush fault timer */
-        cy_sw_timer_stop(context->ptrTimerContext, APP_HAL_VREG_TIMER);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_HAL_VREG_TIMER));
 #endif /* VREG_INRUSH_DET_ENABLE */
     }
 
-    context = solution_fn_handler->Get_PdStack_Context(TYPEC_PORT_0_IDX);
+    context_0 = solution_fn_handler->Get_PdStack_Context(TYPEC_PORT_0_IDX);
+#if defined(CY_DEVICE_CCG7D)
+    context_1 = solution_fn_handler->Get_PdStack_Context(TYPEC_PORT_1_IDX);
+#endif /* defined(CY_DEVICE_CCG7D) */
 
+#if defined(CY_DEVICE_CCG7D)
     /* Disable interrupt handling until recovery is tried */
-    Cy_USBPD_Fault_BrownOutDetDis(context->ptrUsbPdContext);
-
+    Cy_USBPD_Fault_BrownOutDetDis(context_1->ptrUsbPdContext);
 #if VREG_INRUSH_DET_ENABLE
     /* Disable inrush fault also as both are related to vreg */
-    Cy_USBPD_Fault_VregInrushDetDis(context->ptrUsbPdContext);
+    Cy_USBPD_Fault_VregInrushDetDis(context_1->ptrUsbPdContext);
 #endif /* VREG_INRUSH_DET_ENABLE */
+#else
+    
+    /* Disable interrupt handling until recovery is tried */
+    Cy_USBPD_Fault_BrownOutDetDis(context_0->ptrUsbPdContext);
+#if VREG_INRUSH_DET_ENABLE
+    /* Disable inrush fault also as both are related to vreg */
+    Cy_USBPD_Fault_VregInrushDetDis(context_0->ptrUsbPdContext);
+#endif /* VREG_INRUSH_DET_ENABLE */
+#endif /* defined(CY_DEVICE_CCG7D) */
 
     /* Enqueue fault event. */
-    app_event_handler(context, APP_EVT_VREG_BOD_FAULT, NULL);
+    app_event_handler(context_0, APP_EVT_VREG_BOD_FAULT, NULL);
 #else /* VREG_BROWN_OUT_DET_ENABLE */
     /* No statement */
 #endif /* VREG_BROWN_OUT_DET_ENABLE */
@@ -1942,6 +1956,10 @@ void pd_vreg_inrush_det_fault_handler(void *callbackContext, bool state)
 {
 #if VREG_INRUSH_DET_ENABLE
     uint8_t i;
+    cy_stc_pdstack_context_t *context_0;
+#if defined(CY_DEVICE_CCG7D)
+    cy_stc_pdstack_context_t *context_1;
+#endif /* defined(CY_DEVICE_CCG7D) */
     cy_stc_pdstack_context_t *context;
 #if defined(CY_DEVICE_CCG7S)
     if(false == app_is_typec_attached())
@@ -1958,25 +1976,32 @@ void pd_vreg_inrush_det_fault_handler(void *callbackContext, bool state)
 
 #if VREG_INRUSH_DET_ENABLE
             /* Disable inrush fault timer */
-            cy_sw_timer_stop(context->ptrTimerContext, APP_HAL_VREG_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_HAL_VREG_TIMER));
 #endif /* VREG_INRUSH_DET_ENABLE */
         }
     }
 
-    context = solution_fn_handler->Get_PdStack_Context(TYPEC_PORT_0_IDX);
-
-    /* Disable interrupt handling until recovery is tried */
-    Cy_USBPD_Fault_VregInrushDetDis(context->ptrUsbPdContext);
-
+    context_0 = solution_fn_handler->Get_PdStack_Context(TYPEC_PORT_0_IDX);
 #if defined(CY_DEVICE_CCG7D)
+    context_1 = solution_fn_handler->Get_PdStack_Context(TYPEC_PORT_1_IDX);
+    /* Disable interrupt handling until recovery is tried */
+    Cy_USBPD_Fault_VregInrushDetDis(context_1->ptrUsbPdContext);
 #if VREG_BROWN_OUT_DET_ENABLE
     /* Disable brownout fault also as both are related to vreg */
-    Cy_USBPD_Fault_BrownOutDetDis(context->ptrUsbPdContext);
+    Cy_USBPD_Fault_BrownOutDetDis(context_1->ptrUsbPdContext);
+#endif /* VREG_BROWN_OUT_DET_ENABLE */
+
+#else
+   /* Disable interrupt handling until recovery is tried */
+    Cy_USBPD_Fault_VregInrushDetDis(context_0->ptrUsbPdContext);
+#if VREG_BROWN_OUT_DET_ENABLE
+    /* Disable brownout fault also as both are related to vreg */
+    Cy_USBPD_Fault_BrownOutDetDis(context_0->ptrUsbPdContext);
 #endif /* VREG_BROWN_OUT_DET_ENABLE */
 #endif /* defined(CY_DEVICE_CCG7D) */
 
     /* Enqueue fault event. */
-    app_event_handler(context, APP_EVT_VREG_INRUSH_FAULT, NULL);
+    app_event_handler(context_0, APP_EVT_VREG_INRUSH_FAULT, NULL);
 #else /* VREG_INRUSH_DET_ENABLE */
     /* No statement */
 #endif /* VREG_INRUSH_DET_ENABLE */

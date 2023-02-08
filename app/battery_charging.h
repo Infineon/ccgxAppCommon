@@ -1,23 +1,15 @@
-/***************************************************************************//**
-* \file battery_charging.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   battery_charging.h
+* \version 2.0
 *
-* This is the Battery Charging header file
+* Description: Battery Charging header file
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
-
-/**
-* \addtogroup group_ccgxAppCommon Common source files
-* \{
-*/
-
 
 #ifndef BATTERY_CHARGING_H_
 #define BATTERY_CHARGING_H_
@@ -73,6 +65,10 @@
 #define BC_EVT_ALL_MASK                             (0xFFFFFFFFu)
 
 /** @endcond */
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 
 #define BC_CMP_0_IDX                    (0u)    /**< Battery charger comparator #1. */
 #define BC_CMP_1_IDX                    (1u)    /**< Battery charger comparator #2. */
@@ -117,6 +113,11 @@
 /*******************************************************************************
  * Enumerated Data Definition
  ******************************************************************************/
+ 
+/** \addtogroup group_ccgxAppCommon_enums
+* \{
+*/
+
 /**
  * @typedef bc_port_type_t
  * @brief Battery charging port types.
@@ -267,11 +268,13 @@ typedef enum
     BC_SINK_TIMER_BC_DONE = 2,                          /**< T_GLITCH_BC_DONE timer. */
     BC_SINK_TIMER_DM_HIGH = 3    
 } bc_sink_timer_t;
-
+/** \} group_ccgxAppCommon_enums */
 /*******************************************************************************
  * Data Struct Definition
  ******************************************************************************/
-
+/** \addtogroup group_ccgxAppCommon_data_structures
+* \{
+*/
 /**
  * @brief Struct to define battery charger status.
  */
@@ -310,10 +313,14 @@ typedef struct {
     
     bool attach;                                 /**< Whether BC attach has been detected. */
 }bc_status_t;
-
+/** \} group_ccgxAppCommon_data_structures */
 /*******************************************************************************
  * Global Function Declaration
  ******************************************************************************/
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 
 /**
  * @brief This function initializes the Battery Charging block. This should be
@@ -566,8 +573,8 @@ bool bc_is_bc_charging_active(cy_stc_pdstack_context_t * context);
  * @return true if legacy charging connect is negotiated, false otherwise.
  */
 bool bc_is_bc_connected(cy_stc_pdstack_context_t * context);
+/** \} group_ccgxAppCommon_functions */
+/** \} */
 #endif /* _BATTERY_CHARGING_H__ */
-
-/** \} group_ccgxAppCommon */
 
 /* End of File */

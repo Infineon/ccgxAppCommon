@@ -1,20 +1,18 @@
-/***************************************************************************//**
-* \file pdo.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   pdo.h
+* \version 2.0
 *
-* PDO evaluation and handler definitions 
+* Description: PDO evaluation and handler definitions.
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -31,17 +29,23 @@
 /*****************************************************************************
  * Macro Definitions
  *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 #define APP_PPS_SNK_CONTRACT_PERIOD             (9000u)
 /**< Period after which a PPS Sink repeats PD contract attempts. This should be faster than once in 10 seconds. */
 
 #define APP_PPS_SNK_CONTRACT_RETRY_PERIOD       (5u)
 /**< Period after which a failed PPS sink re-contract attempt will be retried. */
-
+/** \} group_ccgxAppCommon_macros */
 /*****************************************************************************
  * Global Function Declaration
  *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief This function is called by the PD stack to allow the application
  * logic to evaluate the Source Capabilities received from the port partner
@@ -107,6 +111,7 @@ typedef void (*eval_src_cap_fptr)(cy_stc_pdstack_context_t* context, const cy_st
 typedef void (*eval_rdo_fptr)(cy_stc_pdstack_context_t* context, cy_pd_pd_do_t rdo, cy_pdstack_app_resp_cbk_t app_resp_handler) ;
 
 /** @endcond */
+/** \} group_ccgxAppCommon_functions */
 #endif /* _PDO_H_ */
 
 /** \} group_ccgxAppCommon */

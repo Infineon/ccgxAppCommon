@@ -1,16 +1,13 @@
-/***************************************************************************//**
-* \file uvdm.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   uvdm.c
+* \version 2.0
 *
-* Unstructured VDM handler source file.
+* Description: Unstructured VDM handler source file.
 *
+* Related Document: See README.md
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include <stdint.h>
@@ -19,7 +16,7 @@
 #include "cy_pdstack_common.h"
 #include "cy_flash.h"
 #include "system.h"
-#include "cy_pdstack_utils.h"
+#include "cy_pdutils.h"
 #include "flash.h"
 #include "boot.h"
 #include "uvdm.h"
@@ -104,7 +101,7 @@ extern app_sln_handler_t *solution_fn_handler;
 /* Array of VDOs to hold response VDM. */
 static cy_pd_pd_do_t gl_response_vdo[UVDM_RESPONSE_MAX_NO_OF_VDO];
 
-void CyGetUniqueId(uint32* uniqueId)
+void CyGetUniqueId(uint32_t* uniqueId)
 {
     /* Need to review the function */
     (void)uniqueId;
@@ -303,7 +300,7 @@ static bool uvdm_update_data_memory(uint8_t* data, uint8_t size, uint8_t seqNum)
     }
 
     /* Copy data. */
-    mem_copy (&gl_data_buf.data_buf[gl_write_data_pointer], data, size);
+    CY_PDUTILS_MEM_COPY (&gl_data_buf.data_buf[gl_write_data_pointer], data, size);
 
 #if (CCG_BOOT == 0)
     /* Updated SEND_DATA UVDM tracker. */
@@ -347,10 +344,11 @@ static bool uvdm_read_data_memory(uint8_t* data, uint8_t seqNum)
     }
 
     /* Copy data. */
-    mem_copy (data, &gl_data_buf.data_buf[gl_read_data_pointer], size);
+    CY_PDUTILS_MEM_COPY (data, &gl_data_buf.data_buf[gl_read_data_pointer], size);
     return true;
 }
 #endif /* SECURE_FW_UPDATE */
+
 
 uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32_t *rx_pkt, cy_pd_pd_do_t **vdm_rspn_pkt,
     uint8_t *vdo_count, flash_cbk_t flash_cb)
@@ -361,6 +359,9 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
     uvdm_cmd_opcode_t cmd_opcode;
     uint8_t cmd_length, seqNum;
     uint16_t row_num;
+#if CCG_BOOT
+    CY_UNUSED_PARAMETER(context);
+#endif /* CCG_BOOT */
 #if (SECURE_FW_UPDATE == 0u)
     bool stat;
 #endif /* (SECURE_FW_UPDATE == 0u) */
@@ -458,12 +459,12 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                 if (cmd_length == 0u)
                 {
                     /* Get boot loader version. */
-                    mem_copy ((uint8_t *)(&gl_response_vdo[UVDM_BOOT_VERSION_VDO_INDEX]),
+                    CY_PDUTILS_MEM_COPY ((uint8_t *)(&gl_response_vdo[UVDM_BOOT_VERSION_VDO_INDEX]),
                             sys_get_boot_version(), UVDM_VERSION_NUM_SIZE_BYTES);
-                    mem_copy ((uint8_t *)(&gl_response_vdo[UVDM_IMG1_VERSION_VDO_INDEX]),
+                    CY_PDUTILS_MEM_COPY ((uint8_t *)(&gl_response_vdo[UVDM_IMG1_VERSION_VDO_INDEX]),
                             sys_get_img1_fw_version(), UVDM_VERSION_NUM_SIZE_BYTES);
 #if (!CCG_DUALAPP_DISABLE)
-                    MEM_COPY ((uint8_t *)(&gl_response_vdo[UVDM_IMG2_VERSION_VDO_INDEX]),
+                    CY_PDUTILS_MEM_COPY ((uint8_t *)(&gl_response_vdo[UVDM_IMG2_VERSION_VDO_INDEX]),
                             sys_get_img2_fw_version(), UVDM_VERSION_NUM_SIZE_BYTES);
 #else
                     gl_response_vdo[UVDM_IMG2_VERSION_VDO_INDEX].val = 0;
@@ -490,7 +491,7 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                     /* Read UUID.
                      * Note: Use uint32* instead of uint32_t* as this is what the CyGetUniqueId() API uses.
                      */
-                    CyGetUniqueId ((uint32 *)((uint32_t)&gl_response_vdo[UVDM_SILICON_ID_VDO_INDEX + 1u]));
+                    CyGetUniqueId ((uint32_t *)((uint32_t)&gl_response_vdo[UVDM_SILICON_ID_VDO_INDEX + 1u]));
                     /*
                      * Increment the VDO number to send the VDO containing Silicon ID
                      * and 2 VDOs for UUID.
@@ -511,11 +512,11 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                         (cmd_param[UVDM_SIGNATURE_BYTE_OFFSET] ==
                          UVDM_DEVICE_RESET_CMD_SIG))
                 {
-#if CCG_BOOT
+#if CC_BOOT
                     response_code = uvdm_handle_device_reset (0);
 #else
                     response_code = solution_fn_handler->uvdm_handle_device_reset (0);
-#endif
+#endif /* CC_BOOT */
                     /* Check if no response. */
                     if (response_code == CY_PDSTACK_STAT_NO_RESPONSE)
                     {
@@ -735,7 +736,7 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                     else
 #endif /* (CCG_BOOT == 0) */
                     {
-                        row_num = MAKE_WORD(cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET],
+                        row_num = CY_PDUTILS_MAKE_WORD(cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET],
                                     cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]);
                         response_code = flash_row_write(row_num, gl_data_buf.data_buf, flash_cb);
 #if (CCG_BOOT == 0)
@@ -830,7 +831,7 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                             bytes_left = (int16_t)UVDM_BLACK_BOX_CHUNK_SIZE;
                         }
                         
-                        mem_copy((uint8_t *)&gl_response_vdo[UVDM_READ_DATA_RESPONSE_VDO_INDEX], (uint8_t *)(CCG_BLACK_BOX_ADDR + effective_offset), (size_t)bytes_left);
+                        CY_PDUTILS_MEM_COPY((uint8_t *)&gl_response_vdo[UVDM_READ_DATA_RESPONSE_VDO_INDEX], (uint8_t *)(CCG_BLACK_BOX_ADDR + effective_offset), (size_t)bytes_left);
                         no_of_vdo += ((uint8_t)(((uint16_t)bytes_left - 1u) >> 2) + 1u);
                     }
                 }
@@ -854,7 +855,7 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                          UVDM_FLASH_READ_WRITE_CMD_SIG))
                 {
                     response_code = flash_row_read(
-                            MAKE_WORD(cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET],
+                            CY_PDUTILS_MAKE_WORD(cmd_param[UVDM_FLASH_ROW_NUM_MSB_OFFSET],
                                 cmd_param[UVDM_FLASH_ROW_NUM_LSB_OFFSET]), gl_data_buf.data_buf);
 
                     if(response_code == CY_PDSTACK_STAT_SUCCESS)
@@ -869,7 +870,7 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                         = (uint8_t)CY_PDSTACK_CMD_TYPE_RESP_NAK;
                 }
     #else
-                response_code = CY_PDSTACK_INVALID_COMMAND;
+                response_code = CY_PDSTACK_STAT_INVALID_COMMAND;
     #endif /* ((SECURE_FW_UPDATE == 0) && (CCG_FLASH_READ_DISABLE == 0)) */     
                 break;
 
@@ -917,10 +918,10 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                 /* Check for flash address and flash size parameters. */
                 if (cmd_length == UVDM_GET_CHECKSUM_CMD_SIZE)
                 {
-                    uint8_t *addr = (uint8_t *)MAKE_DWORD(cmd_param[UVDM_FLASH_ADDR_LSB_OFFSET + 3u],
+                    uint8_t *addr = (uint8_t *)CY_PDUTILS_MAKE_DWORD(cmd_param[UVDM_FLASH_ADDR_LSB_OFFSET + 3u],
                             cmd_param[UVDM_FLASH_ADDR_LSB_OFFSET + 2u], cmd_param[UVDM_FLASH_ADDR_LSB_OFFSET + 1u],
                             cmd_param[UVDM_FLASH_ADDR_LSB_OFFSET]);
-                    uint32_t size = MAKE_DWORD(cmd_param[UVDM_FLASH_SIZE_LSB_OFFSET + 3u],
+                    uint32_t size = CY_PDUTILS_MAKE_DWORD(cmd_param[UVDM_FLASH_SIZE_LSB_OFFSET + 3u],
                             cmd_param[UVDM_FLASH_SIZE_LSB_OFFSET + 2u], cmd_param[UVDM_FLASH_SIZE_LSB_OFFSET + 1u],
                             cmd_param[UVDM_FLASH_SIZE_LSB_OFFSET]);
                     if (((uint32_t)addr + size) >= CY_FLASH_SIZE)
@@ -932,7 +933,7 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                     else
                     {
                         *((uint8_t *)&gl_response_vdo[UVDM_CHECKSUM_VDO_INDEX])
-                            = mem_calculate_byte_checksum (addr, size);
+                            = Cy_PdUtils_MemCalculateByteChecksum(addr, size);
                         /* Increment number of VDOs to be sent by 1. */
                         no_of_vdo++;
                     }
@@ -1099,7 +1100,7 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                     /* Send first 16 bytes for seq number 1 and next 16 bytes for
                      * sequence number 2. */
                     addr = addr + (((uint32_t)seqNum - 1u) << 4u);
-                    mem_copy ((uint8_t *)&gl_response_vdo[0x01], (uint8_t *)addr,
+                    CY_PDUTILS_MEM_COPY ((uint8_t *)&gl_response_vdo[0x01], (uint8_t *)addr,
                             UVDM_GET_CUSTOMER_INFO_RESPONSE_SIZE);
                     no_of_vdo += UVDM_GET_CUSTOMER_INFO_RESPONSE_VDO_NUM;
                 }
@@ -1139,13 +1140,13 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                         if (cmd_param[1] == UVDM_TCC_GET_PERCENTAGE)
                         {
                             uint8_t tcc_percent = tcc_get_percent();
-                            MEM_COPY ((uint8_t *)&gl_response_vdo[0x01], (uint8_t *)&tcc_percent, sizeof(uint8_t));
+                            CY_PDUTILS_MEM_COPY ((uint8_t *)&gl_response_vdo[0x01], (uint8_t *)&tcc_percent, sizeof(uint8_t));
                             no_of_vdo += UVDM_TCC_GET_PERCENTAGE_NO_OF_VDO;
                         }
                         else if (cmd_param[1] == UVDM_TCC_GET_RAW_DATA_SIZE)
                         {
                             uint32_t tcc_raw_data_size = tcc_get_raw_data_size();
-                            MEM_COPY ((uint8_t *)&gl_response_vdo[0x01], (uint8_t *)&tcc_raw_data_size, sizeof(uint32_t));
+                            CY_PDUTILS_MEM_COPY ((uint8_t *)&gl_response_vdo[0x01], (uint8_t *)&tcc_raw_data_size, sizeof(uint32_t));
                             no_of_vdo += UVDM_TCC_GET_RAW_DATA_SIZE_NO_OF_VDO;
                         }
                         else
@@ -1186,7 +1187,7 @@ uvdm_response_state_t uvdm_handle_cmd(cy_stc_pdstack_context_t * context, uint32
                 * read offset = ((ROM addr offset / 4) / 8).
                 * The reduced count is to minimize the CC interface overhead.
                 */
-               read_offset = MAKE_WORD(cmd_param[1], cmd_param[0]);
+               read_offset = CY_PDUTILS_MAKE_WORD(cmd_param[1], cmd_param[0]);
 
                if ((read_offset & 0x3) == 0)
                {

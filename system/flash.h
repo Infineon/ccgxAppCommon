@@ -1,15 +1,16 @@
 /******************************************************************************
 * File Name: flash.h
+* \version 2.0
 *
 * Description: Flash handler header file
 *
 * Related Document: See README.md
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
 */
 
@@ -25,7 +26,10 @@
 /******************************************************************************
  * Constant definitions.
  *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_macros
+* \{
+*/
 #define SROM_API_PARAM_SIZE             (8u)    /**< Size of flash write SROM API parameters in bytes. */
 
 /** CCGx FLASH OPTIONS **/
@@ -89,19 +93,24 @@
  *      = ((CY_PD_BOOT_LOADER_LAST_ROW + 1) << CY_PD_FLASH_ROW_SHIFT_NUM)
  *   -> firmware boot-loadable component firmware start location:
  *      = (CY_PD_CONFIG_TABLE_ADDRESS + CY_PD_CONFIG_TABLE_SIZE) */
-#if ((AUTH_BOOT || CY_FW_USES_AUTH_BOOT) && defined(CY_DEVICE_CCG7S))
+#if ((AUTH_BOOT || CY_FW_USES_AUTH_BOOT) && (defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_CCG7D)))
 #define CCG_BOOT_LOADER_LAST_ROW                (0x3Fu)
 #else
+#ifndef CCG_BOOT_LOADER_LAST_ROW
 #define CCG_BOOT_LOADER_LAST_ROW                (0x2Fu)
-#endif /* (AUTH_BOOT || CY_FW_USES_AUTH_BOOT) && defined(CY_DEVICE_CCG7S) */
+#endif
+#endif /* (AUTH_BOOT || CY_FW_USES_AUTH_BOOT) && (defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_CCG7D)) */
 
 /* Config table address boundary used to distinguish between FW1 and FW2. */
 #define CCG_FW1_CONFTABLE_MAX_ADDR              (0x10000u)
-
+/** @endcond */
+/** \} group_ccgxAppCommon_macros */
 /*****************************************************************************
 * Enumerated Data Definition
 *****************************************************************************/
-
+/** \addtogroup group_ccgxAppCommon_enums
+* \{
+*/
 /**
  * @typedef flash_app_priority_t
  * @brief Enumeration of app priority values.
@@ -147,7 +156,7 @@ typedef enum
     FLASH_WRITE_COMPLETE_AND_ABORTED,   /**< Flash Write completed with an abort request. */
     FLASH_WRITE_IN_PROGRESS             /**< Flash Write is active. */
 } flash_write_status_t;
-
+/** \} group_ccgxAppCommon_enums */
 /*****************************************************************************
 * Data Struct Definition
 *****************************************************************************/
@@ -167,7 +176,10 @@ typedef void (*flash_cbk_t)(flash_write_status_t status);
 /*****************************************************************************
 * Global Function Declaration
 *****************************************************************************/
-
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+*/
 /**
  * @brief Handle ENTER_FLASHING_MODE Command
  *
@@ -342,7 +354,7 @@ cy_en_pdstack_status_t flash_row_read(uint16_t row_num, uint8_t* data);
 cy_en_pdstack_status_t flash_set_app_priority(flash_app_priority_t app_priority);
 
 #endif /*CCG_BOOT*/
-
+/** @cond DOXYGEN_HIDE */
 /* Function pointer types used to access ROM-ed versions of SYSTEM module APIs.
  * These correspond to the various functions defined above.
  */
@@ -354,6 +366,7 @@ typedef void (*flash_set_access_limits_fptr)(uint16_t start_row, uint16_t last_r
 typedef void (*flash_enter_mode_fptr)(bool is_enable, flash_interface_t mode, bool data_in_place);
 typedef bool (*flash_access_get_status_fptr)(uint8_t modes);
 /** @endcond */
+/** \} group_ccgxAppCommon_functions */
 #endif /* FLASH_H_ */
 
 /** \} group_ccgxAppCommon */

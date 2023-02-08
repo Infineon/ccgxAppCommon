@@ -1,33 +1,32 @@
-/***************************************************************************//**
-* \file battery_charging.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   battery_charging.c
+* \version 2.0
 *
-* This is the Battery Charging source file
+* Description: Battery Charging source file
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include <psource.h>
 #if (CY_PD_SINK_ONLY)
 #include <psink.h>
 #endif /* CY_PD_SINK_ONLY */
-#include  "cy_sw_timer.h"
+#include <cy_pdutils_sw_timer.h>
 #include <app.h>
 #include "cy_pdstack_common.h"
 #include <battery_charging.h>
 #include "cy_pdstack_dpm.h"
-#include "cy_sw_timer_id.h"
+#include "app_timer_id.h"
 #include "cy_usbpd_bch.h"
-#include "cy_pdstack_utils.h"
+#include "cy_pdutils.h"
 #include "cy_usbpd_mux.h"
 #include "cy_usbpd_idac_ctrl.h"
 #include "config.h"
+#include "srom.h"
 
 #if BCR
 #include <gpio.h>
@@ -49,9 +48,9 @@
 
 #if BATTERY_CHARGING_ENABLE
 
-#if defined(BCR) || BCR || QC_AFC_SNK_EN
-static bool bc_mismatch_check(cy_stc_pdstack_context_t * context);
-#endif /* defined(BCR) || BCR || QC_AFC_SNK_EN */
+#if BCR || QC_AFC_SNK_EN
+static bool bc_sink_mismatch_check(cy_stc_pdstack_context_t * context);
+#endif /*  || BCR || QC_AFC_SNK_EN */
 
 #define CY_PD_EXT_SRCCAP_PDP_LENGTH         (2)
 #define HPI_EVENT_BC_12_EVENTS             (0xC4)    
@@ -218,7 +217,8 @@ static void bc_phy_cbk_handler(void *callbackCtx, uint32_t event)
     bc_set_bc_evt(context, event);
 }
 
-static bool bc_mismatch_check(cy_stc_pdstack_context_t * context)
+#if (BCR || QC_AFC_SNK_EN)
+static bool bc_sink_mismatch_check(cy_stc_pdstack_context_t * context)
 {
     uint8_t cport=context->port;
     bc_status_t *bc_stat = &gl_bc_status[cport]; 
@@ -238,6 +238,7 @@ static bool bc_mismatch_check(cy_stc_pdstack_context_t * context)
     
     return bc_stat->mismatch;
 }
+#endif /* BCR || QC_AFC_SNK_EN */
 
 bool bc_is_bc_connected(cy_stc_pdstack_context_t * context)
 {
@@ -251,7 +252,7 @@ bool bc_psnk_enable(cy_stc_pdstack_context_t * context)
 {
     uint8_t c_port=context->port;
     bc_status_t *bc_stat = &gl_bc_status[c_port];
-    if(bc_mismatch_check(context) == false)
+    if(bc_sink_mismatch_check(context) == false)
     {
         bc_stat->connected = true;
         app_event_handler(context,APP_EVT_BC_DETECTION_COMPLETED, NULL);
@@ -281,6 +282,11 @@ static void bc_set_mode(cy_stc_pdstack_context_t * context, uint8_t bc_snk_mode)
 static void bc_tmr_cbk(cy_timer_id_t id, void * callbackCtx)
 {
     cy_stc_pdstack_context_t* context = callbackCtx;
+    if (context->port != 0u)
+    {
+        id = (cy_timer_id_t)((uint16_t)id - 128u);
+    }
+
     if(id == ((cy_timer_id_t)APP_BC_GENERIC_TIMER1))
     {
         bc_set_bc_evt(context, BC_EVT_TIMEOUT1);
@@ -452,17 +458,17 @@ cy_en_pdstack_status_t bc_start(cy_stc_pdstack_context_t * context, bc_port_role
 {
     uint8_t cport=context->port;
     cy_stc_pd_dpm_config_t * ptrDpmConfig = &(context->dpmConfig);
-#if ((defined CY_DEVICE_CCG3PA) || (defined CY_DEVICE_CCG3PA2) || (defined CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_PAG1S) || (defined(CY_DEVICE_CCG7D)) || (defined(CY_DEVICE_CCG7S)) || (defined(CY_DEVICE_WLC1)))
+#if ((defined CY_DEVICE_CCG3PA) || (defined CY_DEVICE_CCG3PA2) || (defined CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_PAG1S) || (defined(CY_DEVICE_CCG7D)) || (defined(CY_DEVICE_CCG7S)) || (defined(CY_DEVICE_SERIES_WLC1)))
     bc_status_t *bc_stat = &gl_bc_status[cport];
     const cy_stc_legacy_charging_cfg_t *chg_cfg = bc_get_config(context);
-#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN))
+#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN))
     /* For CDP only mode of operation, we will check if BC1.2 has been enabled in configuration table */
     if((chg_cfg->srcSel & BC_SRC_1_2_MODE_ENABLE_MASK) != 0u)
     {
         app_bc_12_sm_start(context);
     }
     return CY_PDSTACK_STAT_SUCCESS;
-#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN))  */
+#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN))  */
 
 #if (!BCR) && !QC_AFC_SNK_EN
     if (((chg_cfg->srcSel & BATT_CHARGING_SRC_MASK) == 0u) &&
@@ -560,9 +566,9 @@ cy_en_pdstack_status_t bc_stop(cy_stc_pdstack_context_t * context)
 {
     uint8_t cport=context->port;
     (void)cport;
-#if (defined(CY_DEVICE_CCG3PA)) || (defined(CY_DEVICE_CCG3PA2)) || (defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined(CY_DEVICE_CCG3PA)) || (defined(CY_DEVICE_CCG3PA2)) || (defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
 
-#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN))
+#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN))
     Cy_USBPD_Bch_BcDis(context->ptrUsbPdContext);
     return CY_PDSTACK_STAT_SUCCESS;
 #else
@@ -581,7 +587,7 @@ cy_en_pdstack_status_t bc_stop(cy_stc_pdstack_context_t * context)
 #endif /* (LEGACY_APPLE_SRC_SLN_TERM_ENABLE) */
 
     (void)Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_0_IDX);
-    cy_sw_timer_stop_range(context->ptrTimerContext,APP_BC_GENERIC_TIMER1,APP_CDP_DP_DM_POLL_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext,GET_APP_TIMER_ID(context, APP_BC_GENERIC_TIMER1),GET_APP_TIMER_ID(context,APP_CDP_DP_DM_POLL_TIMER));
     (void)Cy_USBPD_Bch_Phy_RemoveTerm(context->ptrUsbPdContext);
     (void)Cy_USBPD_Bch_Phy_Dis(context->ptrUsbPdContext);
     bc_stat->bc_fsm_state = BC_FSM_OFF;
@@ -629,7 +635,7 @@ cy_en_pdstack_status_t bc_stop(cy_stc_pdstack_context_t * context)
     }
 #endif /* (((defined(CY_DEVICE_CCG6)) || (defined(CY_DEVICE_CCG5C))) && (!CY_PD_SOURCE_ONLY) && (!BC_SOURCE_ONLY)) */
     return CY_PDSTACK_STAT_SUCCESS;
-#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN) */
+#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN) */
 
 #elif (defined(CY_DEVICE_CCG5))
     ccg_bc_dis(cport);
@@ -706,7 +712,7 @@ void bc_debounce(cy_stc_pdstack_context_t * context)
     if(bc_stat->dp_dm_status.state == new_state.state)
     {
         bc_stat->old_dp_dm_status.state = bc_stat->dp_dm_status.state;
-        cy_sw_timer_stop(context->ptrTimerContext, (uint8_t)APP_BC_DP_DM_DEBOUNCE_TIMER);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_DP_DM_DEBOUNCE_TIMER));
         return;
     }
 
@@ -720,7 +726,7 @@ void bc_debounce(cy_stc_pdstack_context_t * context)
         if ((bc_stat->dp_dm_status.state != QC_MODE_CONT) || (new_state.state == QC_MODE_5V) ||
             (new_state.state == 0u))
         {
-            (void)cy_sw_timer_start(context->ptrTimerContext,context,(uint8_t)APP_BC_DP_DM_DEBOUNCE_TIMER, APP_BC_DP_DM_DEBOUNCE_TIMER_PERIOD, NULL);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_DP_DM_DEBOUNCE_TIMER), APP_BC_DP_DM_DEBOUNCE_TIMER_PERIOD, NULL);
             bc_stat->old_dp_dm_status.state = new_state.state;
             return;
         }
@@ -730,7 +736,7 @@ void bc_debounce(cy_stc_pdstack_context_t * context)
         }
     }
 
-    if(cy_sw_timer_is_running(context->ptrTimerContext, (uint8_t)APP_BC_DP_DM_DEBOUNCE_TIMER) == false)
+    if(CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_DP_DM_DEBOUNCE_TIMER)) == false)
     {
         bc_stat->dp_dm_status.state = bc_stat->old_dp_dm_status.state;
         /*
@@ -766,12 +772,12 @@ cy_en_pdstack_status_t bc_fsm(cy_stc_pdstack_context_t * context)
     bc_status_t* bc_stat = &gl_bc_status[cport];
     uint8_t evt;
     
-#if (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
 
-#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN))
+#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN))
     (void)Cy_USBPD_Bch_CdpSm(context->ptrUsbPdContext);
     return CY_PDSTACK_STAT_SUCCESS;
-#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN)) */
+#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN)) */
     /* Execute state machine only if the port is active. */
 #if (CCG_TYPE_A_PORT_ENABLE == 1)
     if(cport == TYPEC_PORT_0_IDX)
@@ -792,7 +798,7 @@ cy_en_pdstack_status_t bc_fsm(cy_stc_pdstack_context_t * context)
         }
     }
 #endif /* (CCG_TYPE_A_PORT_ENABLE == 1) */
-#endif /* (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1)) */
+#endif /* (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1)) */
 
 #if (!(QC_SRC_AFC_CHARGING_DISABLED || QC_AFC_CHARGING_DISABLED))
     if((bc_stat->bc_fsm_state == BC_FSM_SRC_QC_OR_AFC) || (bc_stat->bc_fsm_state == BC_FSM_SRC_QC_CONNECTED)
@@ -803,7 +809,7 @@ cy_en_pdstack_status_t bc_fsm(cy_stc_pdstack_context_t * context)
 #endif /* (!(QC_SRC_AFC_CHARGING_DISABLED || QC_AFC_CHARGING_DISABLED)) */
 
     /* Get bc event */
-    evt = event_group_get_event((volatile uint32_t *)&(bc_stat->bc_evt), true);
+    evt = Cy_PdUtils_EventGroup_GetEvent((volatile uint32_t *)&(bc_stat->bc_evt), true);
 
     /* Check if any valid event pending, if not return */
     if(evt < ((uint8_t)BC_FSM_MAX_EVTS))
@@ -817,14 +823,14 @@ cy_en_pdstack_status_t bc_fsm(cy_stc_pdstack_context_t * context)
 
 bool bc_sleep(cy_stc_pdstack_context_t * context)
 {
-#if (defined CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
 
-#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN))
+#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN))
 
     uint8_t port;
     for(port = 0; port < NO_OF_BC_PORTS; port++)
     {
-        if (Cy_USBPD_Bch_Is_Cdp_SmBusy(context->ptrUsbPdContext))
+        if (Cy_USBPD_Bch_Is_Cdp_SmBusy(solution_fn_handler->Get_PdStack_Context(port)->ptrUsbPdContext))
         {
                 return false;
         }
@@ -834,17 +840,18 @@ bool bc_sleep(cy_stc_pdstack_context_t * context)
     uint8_t i;
 #if (!BCR) && !QC_AFC_SNK_EN
     bool timer_range_enabled_flag;
-#endif /* (!BCR) && !QC_AFC_SNK_EN */
+    CY_UNUSED_PARAMETER(context);
+#endif /* (!BCR) */
 
 #if (!QC_AFC_CHARGING_DISABLED)
     bool chgb_dp_status_flag, chgb_dm_status_flag;
 #endif /* (!QC_AFC_CHARGING_DISABLED) */
 
-    cy_stc_pd_dpm_config_t * ptrDpmConfig = &(context->dpmConfig);
     for(i = 0; i < NO_OF_BC_PORTS; i++)
     {
         bc_status_t* bc_stat = &gl_bc_status[i];
         cy_stc_pdstack_context_t * pdstack_ctx = solution_fn_handler->Get_PdStack_Context(i);
+        cy_stc_pd_dpm_config_t * ptrDpmConfig = &(pdstack_ctx->dpmConfig);
 
         /* Execute state machine only if the port is active. */
 #if (CCG_TYPE_A_PORT_ENABLE == 1)
@@ -866,13 +873,13 @@ bool bc_sleep(cy_stc_pdstack_context_t * context)
         }
 #endif /* (CCG_TYPE_A_PORT_ENABLE == 1) */
 #if(!BCR) && !QC_AFC_SNK_EN
-        timer_range_enabled_flag = cy_sw_timer_range_enabled(pdstack_ctx->ptrTimerContext, (uint8_t)APP_BC_GENERIC_TIMER1, (uint8_t)APP_BC_DP_DM_DEBOUNCE_TIMER);
+        timer_range_enabled_flag = CALL_MAP(Cy_PdUtils_SwTimer_RangeEnabled)(pdstack_ctx->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), GET_APP_TIMER_ID(pdstack_ctx,APP_BC_DP_DM_DEBOUNCE_TIMER));
         if ((bc_stat->bc_evt != 0u) || (timer_range_enabled_flag))
 #else
         if ((bc_stat->bc_evt != 0)  ||
-            (cy_sw_timer_is_running(pdstack_ctx->ptrTimerContext, APP_BC_GENERIC_TIMER1) == true) ||
-            (cy_sw_timer_is_running(pdstack_ctx->ptrTimerContext, APP_BC_GENERIC_TIMER2) == true) ||
-            (cy_sw_timer_is_running(pdstack_ctx->ptrTimerContext, APP_BC_DP_DM_DEBOUNCE_TIMER) == true)
+            (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(pdstack_ctx->ptrTimerContext, GET_APP_TIMER_ID(pdstack_ctx,APP_BC_GENERIC_TIMER1)) == true) ||
+            (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(pdstack_ctx->ptrTimerContext, GET_APP_TIMER_ID(pdstack_ctx,APP_BC_GENERIC_TIMER2)) == true) ||
+            (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(pdstack_ctx->ptrTimerContext, GET_APP_TIMER_ID(pdstack_ctx,APP_BC_DP_DM_DEBOUNCE_TIMER)) == true)
            )
 #endif /* (!BCR) && !QC_AFC_SNK_EN */
         {
@@ -978,7 +985,7 @@ bool bc_sleep(cy_stc_pdstack_context_t * context)
 #endif /* (!(QC_SRC_AFC_CHARGING_DISABLED || QC_AFC_CHARGING_DISABLED)) */
     }
 
-#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN)) */
+#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN)) */
 
 #elif (defined(CY_DEVICE_CCG5C) || (defined(CY_DEVICE_CCG6)))
     /* CY_DEVICE_CCG5 or CY_DEVICE_CCG5C*/
@@ -990,15 +997,15 @@ bool bc_sleep(cy_stc_pdstack_context_t * context)
 #if(!BCR) && !QC_AFC_SNK_EN
         if (
                 (bc_stat->bc_evt != 0) ||
-                (cy_sw_timer_range_enabled (i, APP_BC_GENERIC_TIMER1, APP_BC_DETACH_DETECT_TIMER))
+                (CALL_MAP(cy_sw_timer_range_enabled) (i, GET_APP_TIMER_ID(i,APP_BC_GENERIC_TIMER1), APP_BC_DETACH_DETECT_TIMER))
            )
 #else
         if ((bc_stat->bc_evt != 0) ||
-                (cy_sw_timer_is_running(i, APP_BC_GENERIC_TIMER1) == true) ||
-                (cy_sw_timer_is_running(i, APP_BC_GENERIC_TIMER2) == true) ||
-                (cy_sw_timer_is_running(i, APP_BC_DETACH_DETECT_TIMER) == true) ||
-                (cy_sw_timer_is_running(i, APP_BC_DP_DM_DEBOUNCE_TIMER) == true))
-#endif /* (!BCR) && !QC_AFC_SNK_EN */
+                (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(i, GET_APP_TIMER_ID(i,APP_BC_GENERIC_TIMER1)) == true) ||
+                (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(i, GET_APP_TIMER_ID(i,APP_BC_GENERIC_TIMER2)) == true) ||
+                (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(i, GET_APP_TIMER_ID(i,APP_BC_DETACH_DETECT_TIMER)) == true) ||
+                (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(i, GET_APP_TIMER_ID(i,APP_BC_DP_DM_DEBOUNCE_TIMER)) == true))
+#endif /* (!BCR) */
         {
             return false;
         }
@@ -1060,9 +1067,9 @@ void bc_cdp_detach_cbk(cy_timer_id_t id, void * callbackCtx)
 
 bool bc_wakeup(void)
 {
-#if (defined(CY_DEVICE_CCG3PA)) || (defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))
+#if (defined(CY_DEVICE_CCG3PA)) || (defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_PAG1S) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))
 
-#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CY_DEVICE_CCG_CDP_EN))
+#if (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CY_DEVICE_CCG_CDP_EN))
     /* CCG3PA CDP1.2 Do nothing */    
 #else
     uint8_t i = 0;
@@ -1095,7 +1102,7 @@ bool bc_wakeup(void)
         /* Disable QC RCVR interrupts. */
         Cy_USBPD_Bch_Phy_Config_Wakeup(pdstack_ctx->ptrUsbPdContext);
     }
-#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_WLC1))) && (CCG_CDP_EN)) */
+#endif /* (((defined(CY_DEVICE_CCG3PA) || (defined(CY_DEVICE_CCG3PA2)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) || defined(CY_DEVICE_SERIES_WLC1))) && (CCG_CDP_EN)) */
     
 #elif (defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C))
     uint8_t i = 0;
@@ -1338,7 +1345,7 @@ static void bc_eval_apple_brick_id(cy_stc_pdstack_context_t * context, bc_apple_
     }
 
     /* Ensure VBUS is set to 5V. */
-    psnk_set_voltage (context, CY_PD_VSAFE_5V);
+    solution_fn_handler->app_get_callback_ptr(context)->psnk_set_voltage(context, CY_PD_VSAFE_5V);
 #if (BCR) || QC_AFC_SNK_EN
     bc_psnk_enable(context);
 #endif
@@ -1435,7 +1442,7 @@ static void bc_fsm_src_look_for_connect(cy_stc_pdstack_context_t * context, cy_e
              */
             (void)Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_0_IDX);
             (void)Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_1_IDX);
-            cy_sw_timer_stop_range(context->ptrTimerContext, APP_BC_GENERIC_TIMER1, APP_BC_DETACH_DETECT_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), GET_APP_TIMER_ID(context,APP_BC_DETACH_DETECT_TIMER));
             bc_clear_bc_evt(context, BC_EVT_ALL_MASK);
             (void)Cy_USBPD_Bch_Phy_En(context->ptrUsbPdContext);
 
@@ -1588,7 +1595,7 @@ static void bc_fsm_src_look_for_connect(cy_stc_pdstack_context_t * context, cy_e
                  * If a BC device is attached, the line would stay low beyond
                  * a fixed duration; if not the line shall revert back to 2.2V.
                  */
-                (void)cy_sw_timer_start(context->ptrTimerContext,context,(uint8_t)APP_BC_GENERIC_TIMER1, APP_BC_APPLE_DETECT_TIMER_PERIOD, bc_tmr_cbk);
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), APP_BC_APPLE_DETECT_TIMER_PERIOD, CALL_MAP(bc_tmr_cbk));
             }
             else
             {
@@ -1622,7 +1629,7 @@ static void bc_fsm_src_look_for_connect(cy_stc_pdstack_context_t * context, cy_e
                  * If a BC device is attached, the line would stay low beyond
                  * a fixed duration; if not the line shall revert back to 2.2V.
                  */
-                (void)cy_sw_timer_start(context->ptrTimerContext,context,(uint8_t)APP_BC_GENERIC_TIMER1, APP_BC_APPLE_DETECT_TIMER_PERIOD, bc_tmr_cbk);
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), APP_BC_APPLE_DETECT_TIMER_PERIOD, CALL_MAP(bc_tmr_cbk));
             }
             break;
 
@@ -1703,7 +1710,7 @@ static void bc_fsm_src_initial_connect(cy_stc_pdstack_context_t * context, cy_en
             (void)Cy_USBPD_Bch_Phy_Config_Comp(context->ptrUsbPdContext, BC_CMP_1_IDX, CHGB_COMP_P_DP, CHGB_COMP_N_VREF,
                           CHGB_VREF_2V, CHGB_COMP_EDGE_RISING);
             /* Start TGLITCH_BC_DONE timer to ascertain Apple or others */
-            (void)cy_sw_timer_start (context->ptrTimerContext,context, APP_BC_GENERIC_TIMER1, APP_BC_DCP_DETECT_TIMER_PERIOD, bc_tmr_cbk);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), APP_BC_DCP_DETECT_TIMER_PERIOD, CALL_MAP(bc_tmr_cbk));
             break;
 
         case BC_FSM_EVT_CMP1_FIRE:
@@ -1717,7 +1724,7 @@ static void bc_fsm_src_initial_connect(cy_stc_pdstack_context_t * context, cy_en
                                 | BC_SRC_AFC_MODE_ENABLE_MASK)) != 0u)
                 {
                     bc_clear_bc_evt (context, BC_EVT_TIMEOUT2);
-                    (void)cy_sw_timer_start (context->ptrTimerContext,context,(cy_sw_timer_id_t)APP_BC_GENERIC_TIMER2, 150u, bc_tmr_cbk);
+                    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER2), 150u, bc_tmr_cbk);
                 }
                 /*
                  * In QC only mode, stop DCP detect timer and wait for DP to rise
@@ -1725,7 +1732,7 @@ static void bc_fsm_src_initial_connect(cy_stc_pdstack_context_t * context, cy_en
                  */
                 else
                 {
-                    cy_sw_timer_stop (context->ptrTimerContext,APP_BC_GENERIC_TIMER1);
+                    CALL_MAP(Cy_PdUtils_SwTimer_Stop) (context->ptrTimerContext,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1));
                     bc_clear_bc_evt (context, BC_EVT_TIMEOUT1);
                 }
                 /* Set Comp1 to look for > 0.4V on D+. */
@@ -1736,7 +1743,7 @@ static void bc_fsm_src_initial_connect(cy_stc_pdstack_context_t * context, cy_en
             else
             {
                 /* The DP line has gone above 0.6V. Re-start detection. */
-                cy_sw_timer_stop(context->ptrTimerContext,APP_BC_GENERIC_TIMER2);
+                CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER2));
                 bc_clear_bc_evt(context, BC_EVT_TIMEOUT2);
                 (void)Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_0_IDX);
                 bc_set_bc_evt(context, BC_EVT_ENTRY);
@@ -1750,13 +1757,13 @@ static void bc_fsm_src_initial_connect(cy_stc_pdstack_context_t * context, cy_en
              * glitch filter timer expired. We will have to wait for DP to come back in 0.4 - 2V range
              * and then start device detection again. Till then we will stay in DCP only mode.
              */
-            if (cy_sw_timer_is_running (context->ptrTimerContext,APP_BC_GENERIC_TIMER1))
+            if (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning) (context->ptrTimerContext,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1)))
             {
                 /* DP went above 2V. We should stop DCP Detect timer. */
-                cy_sw_timer_stop(context->ptrTimerContext,APP_BC_GENERIC_TIMER1);
+                CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1));
                 bc_clear_bc_evt(context, BC_EVT_TIMEOUT1);
                 /* Stop Apple device detect timer as well. */
-                cy_sw_timer_stop(context->ptrTimerContext,APP_BC_GENERIC_TIMER2);
+                CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER2));
                 bc_clear_bc_evt(context, BC_EVT_TIMEOUT2);
 
                 /* Stop Comp0. */
@@ -1785,7 +1792,7 @@ static void bc_fsm_src_initial_connect(cy_stc_pdstack_context_t * context, cy_en
             bc_clear_bc_evt(context, BC_EVT_CMP1_FIRE);
             (void)Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_1_IDX);
             bc_clear_bc_evt(context, BC_EVT_CMP2_FIRE);
-            cy_sw_timer_stop(context->ptrTimerContext, (uint8_t)APP_BC_GENERIC_TIMER2);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER2));
             bc_clear_bc_evt(context, BC_EVT_TIMEOUT2);
             bc_stat->bc_fsm_state = BC_FSM_SRC_OTHERS_CONNECTED;
             bc_set_bc_evt(context, BC_EVT_ENTRY);
@@ -1797,7 +1804,7 @@ static void bc_fsm_src_initial_connect(cy_stc_pdstack_context_t * context, cy_en
             bc_clear_bc_evt(context, BC_EVT_CMP1_FIRE);
             (void)Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_1_IDX);
             bc_clear_bc_evt(context, BC_EVT_CMP2_FIRE);
-            cy_sw_timer_stop(context->ptrTimerContext, (cy_sw_timer_id_t)APP_BC_GENERIC_TIMER1);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1));
             bc_clear_bc_evt(context, BC_EVT_TIMEOUT1);
 
             /* Treat this as a BC1.2 device. */
@@ -1849,11 +1856,11 @@ void cdp_look_for_dev_disconnect_cb(cy_stc_pdstack_context_t * context, cy_timer
         chgb_counter_start(cport);
 
         /* Start 5ms timer and handle detach detection in cbk */
-        cy_sw_timer_start (context->ptrTimerContext,context,APP_BC_DETACH_DETECT_TIMER, 5, bc_cdp_detach_cbk);
+        CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_DETACH_DETECT_TIMER), 5, bc_cdp_detach_cbk);
     }
 
     /* Restart the polling timer. */
-    cy_sw_timer_start(context->ptrTimerContext,context,APP_CDP_DP_DM_POLL_TIMER, 500, cdp_look_for_dev_disconnect_cb);
+    CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_CDP_DP_DM_POLL_TIMER), 500, cdp_look_for_dev_disconnect_cb);
 }
 
 static void bc_fsm_src_apply_cdp(cy_stc_pdstack_context_t * context, cy_en_pdstack_bc_fsm_evt_t evt)
@@ -1866,7 +1873,7 @@ static void bc_fsm_src_apply_cdp(cy_stc_pdstack_context_t * context, cy_en_pdsta
         case BC_FSM_EVT_ENTRY:
             Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_0_IDX);
             Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_1_IDX);
-            cy_sw_timer_stop_range(context->ptrTimerContext, APP_BC_GENERIC_TIMER1, APP_CDP_DP_DM_POLL_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), GET_APP_TIMER_ID(context,APP_CDP_DP_DM_POLL_TIMER));
             bc_clear_bc_evt(context, BC_EVT_ALL_MASK);
             detach_detect_en[cport] = false;
             Cy_USBPD_Bch_Phy_En(context->ptrUsbPdContext);
@@ -1892,7 +1899,7 @@ static void bc_fsm_src_apply_cdp(cy_stc_pdstack_context_t * context, cy_en_pdsta
                 {
                     vdm_src_applied[cport] = true;
                     bc_stat->comp_rising = true;
-                    chgb_apply_vdm_src(cport);
+                    Cy_USBPD_Bch_Apply_VdmSrc(cport);
 
                     /* Set comparator 1 to fire when D+ < 0.325V */
                     Cy_USBPD_Bch_Phy_Config_Comp(context->ptrUsbPdContext, BC_CMP_0_IDX, CHGB_COMP_P_DP, CHGB_COMP_N_VREF,
@@ -1917,7 +1924,7 @@ static void bc_fsm_src_apply_cdp(cy_stc_pdstack_context_t * context, cy_en_pdsta
         case BC_FSM_EVT_CMP2_FIRE:
             /* Voltage gone above 0.8. Stop CDP detection */
             Cy_USBPD_Bch_Phy_DisableComp(context->ptrTimerContext, BC_CMP_0_IDX);
-            cy_sw_timer_stop_range(context->ptrTimerContext, APP_BC_GENERIC_TIMER1, APP_BC_DP_DM_DEBOUNCE_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), GET_APP_TIMER_ID(context,APP_BC_DP_DM_DEBOUNCE_TIMER));
             if(vdm_src_applied[cport])
             {
                 Cy_USBPD_Bch_Remove_VdmSrc(context->ptrUsbPdContext);
@@ -1928,7 +1935,7 @@ static void bc_fsm_src_apply_cdp(cy_stc_pdstack_context_t * context, cy_en_pdsta
 
             /* Start a timer to poll DP/DM lines to detect USB device disconnection. */
             detach_detect_en[cport] = true ;
-            cy_sw_timer_start(context->ptrTimerContext,context,APP_CDP_DP_DM_POLL_TIMER, 500, cdp_look_for_dev_disconnect_cb);
+            CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_CDP_DP_DM_POLL_TIMER), 500, cdp_look_for_dev_disconnect_cb);
             break;
 
         default:
@@ -2453,7 +2460,7 @@ void bc_snk_try_next_protocol(cy_stc_pdstack_context_t * context)
     }
 
     /* Ensure VBUS is set to 5V. */
-    psnk_set_voltage (context, CY_PD_VSAFE_5V);
+    solution_fn_handler->app_get_callback_ptr(context)->psnk_set_voltage(context, CY_PD_VSAFE_5V);
 
     /* Try Apple protocol if enabled and BC1.2 current mismatch is still present. */
     if (
@@ -2497,7 +2504,7 @@ static void bc_fsm_sink_start(cy_stc_pdstack_context_t * context, cy_en_pdstack_
 
 #if BCR || QC_AFC_SNK_EN
         Cy_USBPD_Bch_Phy_DisableComp(context->ptrUsbPdContext, BC_CMP_0_IDX);
-        cy_sw_timer_stop_range(context->ptrTimerContext, APP_BC_GENERIC_TIMER1, APP_BC_DETACH_DETECT_TIMER);
+        CALL_MAP(Cy_PdUtils_SwTimer_StopRange)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), GET_APP_TIMER_ID(context,APP_BC_DETACH_DETECT_TIMER));
         bc_clear_bc_evt(context, BC_EVT_ALL_MASK);
 #endif /* BCR || QC_AFC_SNK_EN */
         /* Set up CHGDET hardware block for operation. */
@@ -2713,7 +2720,7 @@ static void bc_fsm_sink_primary_charger_detect(cy_stc_pdstack_context_t * contex
     {
         /* Apply terminations on D+/-. */
         Cy_USBPD_Bch_Phy_ConfigSnkTerm(context->ptrUsbPdContext, CHGB_SINK_TERM_PCD);
-        cy_sw_timer_start (context->ptrTimerContext,context,APP_BC_GENERIC_TIMER1, APP_BC_VDP_DM_SRC_ON_PERIOD, bc_tmr_cbk);
+        CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), APP_BC_VDP_DM_SRC_ON_PERIOD, CALL_MAP(bc_tmr_cbk));
     }
     else if(evt == BC_FSM_EVT_TIMEOUT1)
     {
@@ -2747,7 +2754,7 @@ static void bc_fsm_sink_primary_charger_detect(cy_stc_pdstack_context_t * contex
 #endif /* BCR || QC_AFC_SNK_EN */
             {
                 /* Start timer for source to diffrentiate between primary and secondary detection */
-                cy_sw_timer_start(context->ptrTimerContext,context, APP_BC_GENERIC_TIMER2, APP_BC_VDMSRC_EN_DIS_PERIOD, bc_tmr_cbk);
+                CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER2), APP_BC_VDMSRC_EN_DIS_PERIOD, CALL_MAP(bc_tmr_cbk));
             }
         }
 #if BCR || QC_AFC_SNK_EN
@@ -2820,7 +2827,7 @@ static void bc_fsm_sink_secondary_charger_detect(cy_stc_pdstack_context_t * cont
         /* Apply terminations on D+/-. */
         Cy_USBPD_Bch_Phy_ConfigSnkTerm(context->ptrUsbPdContext, CHGB_SINK_TERM_SCD);
         /* Start timer to apply VDM_SRC for TVDM_SRC_ON */
-        cy_sw_timer_start(context->ptrTimerContext,context,APP_BC_GENERIC_TIMER1, APP_BC_VDP_DM_SRC_ON_PERIOD, bc_tmr_cbk);
+        CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1), APP_BC_VDP_DM_SRC_ON_PERIOD, CALL_MAP(bc_tmr_cbk));
     }
     else if(evt == BC_FSM_EVT_TIMEOUT1)
     {
@@ -2880,7 +2887,7 @@ static void bc_fsm_sink_dcp_connected(cy_stc_pdstack_context_t * context, cy_en_
              * Start TGLITCH_BC_DONE (1.5s). If D- is pulled low within this time,
              * then charger is QC/AFC. Otherwise it is DCP.
              */
-            cy_sw_timer_start (context->ptrTimerContext,context,APP_BC_GENERIC_TIMER1,
+            CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1),
                 APP_BC_GLITCH_BC_DONE_TIMER_PERIOD, bc_tmr_cbk);
             bc_stat->cur_timer = BC_SINK_TIMER_BC_DONE;
 
@@ -2914,17 +2921,17 @@ static void bc_fsm_sink_dcp_connected(cy_stc_pdstack_context_t * context, cy_en_
                  * T_GLITCH_DM_HIGH (40ms) before making VBUS request. Set up the
                  * comparator and timer.
                  */
-                cy_sw_timer_stop (context->ptrTimerContext,APP_BC_GENERIC_TIMER1);
+                CALL_MAP(Cy_PdUtils_SwTimer_Stop) (context->ptrTimerContext,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1));
                 Cy_USBPD_Bch_Phy_Config_Comp(context->ptrUsbPdContext, BC_CMP_0_IDX, CHGB_COMP_P_DM, CHGB_COMP_N_VREF,
                     CHGB_VREF_0_325V, CHGB_COMP_EDGE_RISING);
-                cy_sw_timer_start (context->ptrTimerContext,context,APP_BC_GENERIC_TIMER1,
+                CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1),
                     APP_BC_GLITCH_DM_HIGH_TIMER_PERIOD, bc_tmr_cbk);
                 bc_stat->cur_timer = BC_SINK_TIMER_DM_HIGH;
             }
             else if (bc_stat->cur_timer == BC_SINK_TIMER_DM_HIGH)
             {
                 /* D- wasn't held low for T_GLITCH_DM_HIGH. */
-                cy_sw_timer_stop (context->ptrTimerContext, APP_BC_GENERIC_TIMER1);
+                CALL_MAP(Cy_PdUtils_SwTimer_Stop) (context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1));
             }
             break;
 
@@ -3055,16 +3062,17 @@ static void bc_fsm_sink_afc_charger_detect(cy_stc_pdstack_context_t* context, cy
             bc_stat->afc_snk_cur_vi_byte = (((((bc_stat->max_volt - AFC_BASE_VOLT)/AFC_VOLT_STEP) << 4 ) & 0xF0) |
                                     bc_sink_calculate_required_current(context, bc_stat->max_amp));
 
-            psnk_set_voltage (context, bc_stat->max_volt);
+
+            solution_fn_handler->app_get_callback_ptr(context)->psnk_set_voltage(context, bc_stat->max_volt);
             bc_stat->cur_amp = CY_USBPD_GET_MIN(bc_stat->max_amp, CY_PD_I_3A);
             psnk_set_current (context, CY_USBPD_GET_MIN(bc_stat->max_amp, CY_PD_I_3A));
 
-            Cy_USBPD_Bch_Set_AfcTxData(context->ptrUsbPdContext, &bc_stat->afc_snk_cur_vi_byte, 1);
+            Cy_USBPD_Bch_Afc_Set_Tx_Data(context->ptrUsbPdContext, &bc_stat->afc_snk_cur_vi_byte, 1);
             /* Enable AFC interrupt, init rx buffer and start transaction. */
             Cy_USBPD_Bch_AfcSinkStart(context->ptrUsbPdContext);
 
             bc_stat->afc_retry_count = 0;
-            cy_sw_timer_start(context->ptrTimerContext,context,APP_BC_GENERIC_TIMER2, APP_BC_AFC_SNK_VI_BYTE_PERIOD, bc_tmr_cbk);
+            CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER2), APP_BC_AFC_SNK_VI_BYTE_PERIOD, bc_tmr_cbk);
             break;
 
         case BC_FSM_EVT_TIMEOUT2:
@@ -3078,11 +3086,11 @@ static void bc_fsm_sink_afc_charger_detect(cy_stc_pdstack_context_t* context, cy
                     vbus = vbus_get_value(context);
                     uint16_t vbus_vi = ((rcvd_vi >> 4) * AFC_VOLT_STEP) + AFC_BASE_VOLT;
                     /* Check if required VBUS voltage is set with +/- 5% tolerance */
-                    if((vbus > (vbus_vi - div_round_up(vbus_vi, 20))) && (vbus < (vbus_vi + div_round_up(vbus_vi, 20))))
+                    if((vbus > (vbus_vi - CY_PDUTILS_DIV_ROUND_UP(vbus_vi, 20))) && (vbus < (vbus_vi + CY_PDUTILS_DIV_ROUND_UP(vbus_vi, 20))))
                     {
                         /* VBUS is set as required, send ping with the same VI_BYTE */
 
-                        if(bc_mismatch_check(context) == false)
+                        if(bc_sink_mismatch_check(context) == false)
                         {
                             if(bc_stat->connected == false)
                             {
@@ -3126,7 +3134,7 @@ static void bc_fsm_sink_afc_charger_detect(cy_stc_pdstack_context_t* context, cy
                                     continue;
                                 }
 
-                                psnk_set_voltage (context, vbus_vi);
+                                solution_fn_handler->app_get_callback_ptr(context)->psnk_set_voltage(context, vbus_vi);
                                 bc_stat->afc_snk_cur_vi_byte = *(Cy_USBPD_Bch_AfcGetRxDataPtr(context->ptrUsbPdContext) + (i-1));
                                 new_VI_BYTE_flag = true;
                                 break;
@@ -3149,9 +3157,9 @@ static void bc_fsm_sink_afc_charger_detect(cy_stc_pdstack_context_t* context, cy
                     }
                 }
                 /* Send old or BYTE_VI */
-                Cy_USBPD_Bch_Set_AfcTxData(context->ptrUsbPdContext, &bc_stat->afc_snk_cur_vi_byte, 1);
+                Cy_USBPD_Bch_Afc_Set_Tx_Data(context->ptrUsbPdContext, &bc_stat->afc_snk_cur_vi_byte, 1);
                 Cy_USBPD_Bch_AfcSinkStart(context->ptrUsbPdContext);
-                cy_sw_timer_start(context->ptrTimerContext,context, APP_BC_GENERIC_TIMER2, APP_BC_AFC_SNK_VI_BYTE_PERIOD, bc_tmr_cbk);
+                CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER2), APP_BC_AFC_SNK_VI_BYTE_PERIOD, bc_tmr_cbk);
             }
             else
             {
@@ -3159,9 +3167,9 @@ static void bc_fsm_sink_afc_charger_detect(cy_stc_pdstack_context_t* context, cy
                 bc_stat->afc_retry_count ++;
                 if(bc_stat->afc_retry_count < AFC_DETECT_RETRY_COUNT)
                 {
-                    Cy_USBPD_Bch_Set_AfcTxData(context->ptrUsbPdContext, &bc_stat->afc_snk_cur_vi_byte, 1);
+                    Cy_USBPD_Bch_Afc_Set_Tx_Data(context->ptrUsbPdContext, &bc_stat->afc_snk_cur_vi_byte, 1);
                     Cy_USBPD_Bch_AfcSinkStart(context->ptrUsbPdContext);
-                    cy_sw_timer_start(context->ptrTimerContext,context, APP_BC_GENERIC_TIMER2, APP_BC_AFC_SNK_VI_BYTE_PERIOD, bc_tmr_cbk);
+                    CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context, GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER2), APP_BC_AFC_SNK_VI_BYTE_PERIOD, bc_tmr_cbk);
                 }
                 else
                 {
@@ -3191,7 +3199,7 @@ static void bc_fsm_sink_afc_charger_detect(cy_stc_pdstack_context_t* context, cy
         case BC_FSM_EVT_AFC_RESET_RCVD:
             /* AFC Reset. Treat as failure and try next BC protocol. */
             Cy_USBPD_Bch_AfcSinkStop(context->ptrUsbPdContext);
-            psnk_set_voltage(context, CY_PD_VSAFE_5V);
+            solution_fn_handler->app_get_callback_ptr(context)->psnk_set_voltage(context, CY_PD_VSAFE_5V);
             bc_stat->cur_volt = CY_PD_VSAFE_5V;
 
             bc_set_mode(context,BC_CHARGE_AFC);
@@ -3254,9 +3262,9 @@ static void bc_fsm_sink_qc_charger_detected(cy_stc_pdstack_context_t * context, 
             }
 
             bc_apply_sink_term(context, bc_stat->requested_qc_volt);
-            psnk_set_voltage (context, bc_stat->requested_qc_volt);
+            solution_fn_handler->app_get_callback_ptr(context)->psnk_set_voltage(context, bc_stat->requested_qc_volt);
             /* Now wait for T_V_NEW_REQUEST and then check new voltage. */
-            cy_sw_timer_start (context->ptrTimerContext,context,APP_BC_GENERIC_TIMER1,
+            CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1),
                 APP_BC_V_NEW_REQUEST_TIMER_PERIOD, bc_tmr_cbk);
             break;
 
@@ -3268,14 +3276,14 @@ static void bc_fsm_sink_qc_charger_detected(cy_stc_pdstack_context_t * context, 
             vbus = vbus_get_value(context);
 
             /* Check if required VBUS voltage is set with +/- 5% tolerance */
-            if((vbus > (bc_stat->requested_qc_volt - div_round_up(bc_stat->requested_qc_volt, 20))) &&
-                vbus < (bc_stat->requested_qc_volt + div_round_up(bc_stat->requested_qc_volt, 20)))
+            if((vbus > (bc_stat->requested_qc_volt - CY_PDUTILS_DIV_ROUND_UP(bc_stat->requested_qc_volt, 20))) &&
+                vbus < (bc_stat->requested_qc_volt + CY_PDUTILS_DIV_ROUND_UP(bc_stat->requested_qc_volt, 20)))
             {
                 /* VBUS is present.Enable PSink. */
                 psnk_set_current (context, CY_USBPD_GET_MIN(bc_stat->max_amp, CY_PD_I_1P5A));
                 bc_set_mode(context,BC_CHARGE_QC2);
 
-                if(bc_mismatch_check(context) == false)
+                if(bc_sink_mismatch_check(context) == false)
                 {
                     if(bc_stat->connected == false)
                     {
@@ -3317,11 +3325,11 @@ static void bc_fsm_sink_qc_charger_detected(cy_stc_pdstack_context_t * context, 
                 }
 
                 /* Try to request lower Vbus from charger */
-                psnk_set_voltage (context, bc_stat->requested_qc_volt);
+                solution_fn_handler->app_get_callback_ptr(context)->psnk_set_voltage(context, bc_stat->requested_qc_volt);
                 bc_apply_sink_term(context, bc_stat->requested_qc_volt);
                 /* Start timer again */
                 /* Now wait for T_V_NEW_REQUEST and then check new voltage. */
-                cy_sw_timer_start (context->ptrTimerContext,context,APP_BC_GENERIC_TIMER1,
+                CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_BC_GENERIC_TIMER1),
                     APP_BC_V_NEW_REQUEST_TIMER_PERIOD, bc_tmr_cbk);
             }
             break;

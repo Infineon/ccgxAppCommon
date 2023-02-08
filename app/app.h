@@ -1,22 +1,25 @@
-/***************************************************************************//**
-* \file app.h
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   app.h
+* \version 2.0
 *
-* This is the header file for PD application
+* Description: This is the header file for PD application
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
-
 /**
-* \addtogroup group_ccgxAppCommon Common source files
+* \addtogroup group_ccgxAppCommon App Common Middleware
 * \{
-*/
+* \defgroup group_ccgxAppCommon_macros Macros
+* \defgroup group_ccgxAppCommon_functions Functions
+* \defgroup group_ccgxAppCommon_data_structures Data Structures
+* \defgroup group_ccgxAppCommon_enums Enumerated Types
+*
+* */
+
 
 #ifndef _APP_H_
 #define _APP_H_
@@ -25,10 +28,11 @@
  * Header files including
  ******************************************************************************/
 #include <stdint.h>
-#if (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP)
-#include <alt_mode_hw.h>
-#endif /* (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP) */
 #include "config.h"
+#if (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP)
+#include "cy_pdaltmode_defines.h"
+#include <cy_pdaltmode_hw.h>
+#endif /* (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP) */
 #include <cy_usbpd_vbus_ctrl.h>
 #include <cy_usbpd_typec.h>
 #include <cy_pdstack_dpm.h>
@@ -36,6 +40,11 @@
 /*******************************************************************************
  * MACRO Definition
  ******************************************************************************/
+/** \addtogroup group_ccgxAppCommon_macros
+* \{
+* This section describes the ccgxAppCommon Macros.
+* Detailed information about the macros is available in each macro description.
+*/
 
 #define ADC_VBUS_MIN_OVP_LEVEL                          (6500u)
 /**< Minimum OVP detection voltage when ADC is used to implement OVP (applies to CCG4). */
@@ -281,6 +290,14 @@
 #define APP_DATA_RESET_FAIL_TIMEOUT                     (295u)
 /**< tDataResetFail timeout period used by the DFP after expiry of tDataReset timer. */
 
+/** \} group_ccgxAppCommon_macros */
+
+/** \addtogroup group_ccgxAppCommon_data_structures
+* \{
+* This section describes the ccgxAppCommon Structures.
+* Detailed information about the structures is available in each structure description.
+*/
+
 /*****************************************************************************
  * Data Struct Definition
  ****************************************************************************/
@@ -334,32 +351,7 @@ typedef enum {
     CONFIG_SUB_TABLE_AMD        = 12,
 } app_cfg_sub_table_type_t;
 
-/**
-   @brief This structure hold all VDM Configuration Info.
- */
-typedef struct
-{
-    uint32_t discId[7];                      /**< Discover ID response */
-    uint16_t dIdLength;                      /**< Discover ID response length */
-    uint32_t sVid[7];                        /**< SVID array */
-    uint16_t sVidLength;                     /**< SVID length */
-    uint32_t discMode[7];                    /**< Discover mode response */
-    uint16_t disModeLength;                  /**< Discover mode length. */
-} vdm_info_config_t;
-
-/**
-  @ typedef mux_status_t
-  @ brief Possible states for the MUX handler.
- */
-typedef enum
-{
-    MUX_STATE_IDLE,                      /**< MUX idle state. */
-    MUX_STATE_FAIL,                      /**< MUX switch failed. */
-    MUX_STATE_BUSY,                      /**< MUX is busy. */
-    MUX_STATE_SUCCESS                    /**< MUX switched successfully. */
-} mux_status_t;
-
-#if(BCR) || QC_AFC_SNK_EN
+#if(BCR)
 /**
  * @brief Union to hold the OVP settings.
  */
@@ -434,28 +426,16 @@ typedef struct
     cy_pdstack_pwr_ready_cbk_t pwr_ready_cbk;        /**< Registered Power source callback. */
     cy_pdstack_sink_discharge_off_cbk_t snk_dis_cbk; /**< Registered Power sink callback. */
     app_resp_t appResp;                  /**< Buffer for APP responses. */
-    vdm_resp_t vdmResp;                  /**< Buffer for VDM responses. */
     uint16_t psrc_volt;                   /**< Current Psource voltage in mV */
     uint16_t psrc_volt_old;               /**< Old Psource voltage in mV */
     uint16_t psnk_volt;                   /**< Current PSink voltage in mV units. */
     uint16_t psnk_cur;                    /**< Current PSink current in 10mA units. */
-    uint8_t vdm_task_en;                  /**< Flag to indicate is vdm task manager enabled. */
-    uint8_t disc_cbl_pending;             /**< Flag to indicate is cable discovery is pending. */
-    uint8_t cbl_disc_id_finished;         /**< Flag to indicate that cable disc id finished. */
-    uint8_t vdm_version;                  /**< Live VDM version. */
-    uint8_t alt_mode_trig_mask;           /**< Mask to indicate which alt mode should be enabled by EC. */
-    uint8_t dfp_alt_mode_mask;            /**< Mask to enable DFP alternate modes. */
-    uint8_t ufp_alt_mode_mask;            /**< Mask to enable UFP alternate modes. */
     uint16_t custom_hpi_svid;             /**< Holds custom alternate mode SVID received from HPI. */
     volatile uint8_t fault_status;        /**< Fault status bits for this port. */
-    bool alt_mode_entered;                /**< Flag to indicate is alternate modes currently entered. */
-    bool vdm_prcs_failed;                 /**< Flag to indicate is vdm process failed. */
     bool is_vbus_on;                      /**< Is supplying VBUS flag. */
     bool is_vconn_on;                     /**< Is supplying VCONN flag. */
     bool vdm_retry_pending;               /**< Whether VDM retry on timeout is pending. */
     bool psrc_rising;                     /**< Voltage ramp up/down. */
-    bool cbl_rst_done;                    /**< Flag to indicate that cable reset was provided. */  
-    bool trig_cbl_rst;                    /**< Flag to trigger cable reset. */
     bool cur_fb_enabled;                  /**< Indicates that current foldback is enabled */
     bool ld_sw_ctrl;                      /**< Indicates whether the VBUS load switch control is active or not. */
     bool bc_12_src_disabled;              /**< BC 1.2 source disabled flag. */
@@ -464,12 +444,6 @@ typedef struct
     bool bist_stm_entry_pending;          /**< Flag to indicate BIST STM entry event handling is pending. */
     bool bist_stm_exit_pending;           /**< Flag to indicate BIST STM exit event handling is pending. */
 #endif /* CY_PD_BIST_STM_ENABLE */
-    bool is_mux_busy;                     /**< Flag to indicate that mux is switching. */
-    cy_pdstack_vdm_resp_cbk_t vdm_resp_cbk;          /**< VDM response handler callback. */
-    bool is_vdm_pending;                  /**< VDM handling flag for MUX callback. */
-#if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-    mux_poll_fnc_cbk_t mux_poll_cbk;      /**< Holds pointer to MUX polling function. */
-#endif /* (DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
     bool          keep_vconn_src;         /**< Flag indicating that we should keep VConn source role. */
 
     uint8_t       app_pending_swaps;      /**< Variable denoting the types of swap operation that are pending. */
@@ -481,21 +455,10 @@ typedef struct
     uint8_t       turn_off_temp_limit;    /**< Temperature threshold to turn off internal FET */
     bool          is_hot_shutdown;        /**< Indicates that hot shutdown detected */
 
-    bool          usb4_active;            /**< Indicates that USB4 mode was entered */ 
-    uint8_t       usb4_data_rst_cnt;      /**< Indicates number of Dat Reset retries */
 
     bool          debug_acc_attached;     /**< Debug accessory attach status */
-    bool          retimer_dis_req;        /**< Flag to indicate disable Retimer request in ridge layer */
-
-    bool usb2Supp;                       /**< USB2 supported flag for Ridge related applications. */
-    bool usb3_supp;                       /**< USB3 supported flag for Ridge related applications. */
-
-    bool          skip_mux_config;        /**< Flag to indicate do not configure MUX */
-    bool cable_retimer_supp;              /**< Retimer supported flag for Ridge related applications. */
-    mux_status_t  mux_stat;               /**< Indicates current MUX status */
     bool          apu_reset_pending;      /**< Flag to indicate that APU reset is in progress. */
-    cy_pd_pd_do_t       tbt_cbl_vdo;            /**< Holds TBT cable VDO. */
-#if(BCR) || QC_AFC_SNK_EN
+#if(BCR)
     uint8_t       bcr_renegotiation_cfet_disabled; /**< Disable CFET during contract renegotiation. */
     uint8_t       bcr_safefet_ec_disabled;         /**< HPI external controller can disable SAFE_FET. */
     uint8_t       bcr_bus_current;                 /**< Measured consumer VBUS current in 50mA units. */
@@ -529,28 +492,6 @@ typedef enum {
 } app_thermistor_type_t;
 
 /**
-  @ typedef mux_select_t
-  @ brief Possible settings for the Type-C Data MUX.
-  @ note This type should be extended to cover all possible modes for the MUX.
- */
-typedef enum
-{
-    MUX_CONFIG_ISOLATE,                  /**< Isolate configuration. */
-    MUX_CONFIG_SAFE,                     /**< USB Safe State (USB 2.0 lines remain active) */
-    MUX_CONFIG_SS_ONLY,                  /**< USB SS configuration. */
-#if ((DP_DFP_SUPP) || (DP_UFP_SUPP))
-    MUX_CONFIG_DP_2_LANE,                /**< Two lane DP configuration. */
-    MUX_CONFIG_DP_4_LANE,                /**< Four lane DP configuration. */
-#endif /* ((DP_DFP_SUPP) || (DP_UFP_SUPP)) */
-    MUX_CONFIG_USB4_CUSTOM,              /**< USB4 custom configuration. */
-    MUX_CONFIG_RIDGE_CUSTOM,             /**< Alpine/Titan Ridge custom configuration. */
-    MUX_CONFIG_INIT,                     /**< Enables MUX functionality. */
-    MUX_CONFIG_DEINIT,                   /**< Disables MUX functionality. */
-
-} mux_select_t;
-
-
-/**
  * @typedef ccg_supply_t
  * @brief List of power supplies input to and monitored by the CCG5x and CCG6x devices.
  * This does not include the VBus supply which is monitored by all CCG devices as required by
@@ -582,16 +523,24 @@ typedef struct
             );                          /**< App Solution handler for mapping port index to context. */
 
     bool (*mux_ctrl_init)(
-            uint8_t port                 /**< PD port index. */ 
+            cy_stc_pdstack_context_t * context  /**< PD stack context. */
             );                          /**< App Solution level function to initialize the mux. */
     cy_en_pdstack_status_t (*uvdm_handle_device_reset)(   
             uint32_t reset_sig                  /**< Device Reset Signature */
             );                          /**< App Solution level function to reset device. */       
 }app_sln_handler_t;
 
+/** \} group_ccgxAppCommon_data_structures */
 /*****************************************************************************
  * Global Function Declaration
  *****************************************************************************/
+/**
+* \addtogroup group_ccgxAppCommon_functions
+* \{
+* This section describes the ccgxAppCommon functions.
+* Detailed information about each API is available in each function description.
+*/
+
 
 /**
  * @brief Application level init function.
@@ -677,10 +626,9 @@ void app_wakeup (void);
  * being idle and then enters sleep mode with the appropriate wake-up
  * triggers. If the device enters sleep mode, the function will only
  * return after the device has woken up.
- * @param  ptrPdStackContext PD Stack context.
  * @return true if the device went into sleep, false otherwise.
  */
-bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext);
+bool system_sleep();
 
 /*****************************************************************************
   Functions related to power
@@ -725,7 +673,7 @@ bool vconn_is_present(cy_stc_pdstack_context_t *ptrPdStackContext);
  *
  * @return true if power is present on VBus, else returns false
  */
-bool vbus_is_present(cy_stc_pdstack_context_t *ptrPdStackContext, uint16_t volt, int8 per);
+bool vbus_is_present(cy_stc_pdstack_context_t *ptrPdStackContext, uint16_t volt, int8_t per);
 
 /**
  * @brief This function return current VBUS voltage in mV
@@ -903,20 +851,20 @@ void sln_pd_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 /**
  * @brief Initialize the Type-C Data Mux for a specific PD port.
  *
- * @param port USB-PD port for which the MUX is to be initialized.
+ * @param context PD stack context.
  * @return Returns true if the MUX is initialized successfully, false otherwise.
  */
-bool mux_ctrl_init(uint8_t port);
-
+bool mux_ctrl_init(cy_stc_pdstack_context_t * context);
+#if (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP)
 /**
  * @brief Set the Type-C MUX to the desired configuration.
- * @param port PD port on which MUX is to be configured.
+ * @param ptrPdStackContext PD stack context.
  * @param cfg Desired MUX configuration.
  * @param polarity Polarity of the Type-C connection.
  * @return Returns true if the operation is successful, false otherwise.
  */
-bool mux_ctrl_set_cfg(uint8_t port, mux_select_t cfg, uint8_t polarity);
-
+bool mux_ctrl_set_cfg(cy_stc_pdstack_context_t *ptrPdStackContext, cy_en_pdaltmode_mux_select_t cfg, uint8_t polarity);
+#endif /* (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP) */
 /**
  * @brief Enable BB device enumeration on the board.
  * @param port PD port index.
@@ -1062,6 +1010,10 @@ typedef void (*app_connect_change_handler_fptr) (uint8_t port);
 bool ccg_is_dualport(void);
 
 void app_ccgx_supply_change_cb(uint8_t port, ccg_supply_t supply_id, bool present);
+
+#if ((VREG_INRUSH_DET_ENABLE) || (VREG_BROWN_OUT_DET_ENABLE))
+void app_vreg_inrush_fault_recovery_retry_cb(cy_timer_id_t id, void * callbackCtx);
+#endif /* ((VREG_INRUSH_DET_ENABLE) || (VREG_BROWN_OUT_DET_ENABLE)) */
 /** @endcond */
 
 /**
@@ -1162,6 +1114,13 @@ void pd_vreg_inrush_det_fault_handler(void *callbackContext, bool state);
 
 /** @endcond */
 
+/**
+ * @brief Callback Function to decide whether to send source info.
+ * @param ptrPdStackContext PD stack context.
+ * @return true if source info can be send
+ */
+bool send_src_info (struct cy_stc_pdstack_context *ptrPdStackContext);
+/** \} group_ccgxAppCommon_functions */
 #endif /* _APP_H_ */
 
 /** \} group_ccgxAppCommon */

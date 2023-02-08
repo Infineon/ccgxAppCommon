@@ -1,16 +1,14 @@
-/***************************************************************************//**
-* \file app.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   app.c
+* \version 2.0
 *
-* This is the source file for PD application
+* Description: This is the source file for PD application
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include <cy_pdstack_common.h>
@@ -26,18 +24,16 @@
 #include <swap.h>
 #include <vdm.h>
 #include <app.h>
-#include <vdm_task_mngr.h>
-#include <alt_modes_mngr.h>
-#include <cy_sw_timer.h>
-#include <cy_sw_timer_id.h>
+#include <cy_pdaltmode_vdm_task.h>
+#include "cy_pdaltmode_defines.h"
+#include <cy_pdaltmode_mngr.h>
+#include <cy_pdaltmode_hw.h>
+#include <cy_pdutils_sw_timer.h>
+#include <app_timer_id.h>
 #include "cy_usbpd_common.h"
 #include "srom.h"
 #include "cy_usbpd_config_table.h"
 
-
-#if (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP)
-#include <alt_mode_hw.h>
-#endif /* (DFP_ALT_MODE_SUPP || DFP_ALT_MODE_SUPP) */
 #include <cy_gpio.h>
 
 #if CCG_LOAD_SHARING_ENABLE
@@ -80,10 +76,10 @@
 #endif /* AMD_SUPP_ENABLE */
 
 #if DP_UFP_SUPP
-#include <dp_sid.h>
+#include "cy_pdaltmode_dp_sid.h"
 #endif /* DP_UFP_SUPP */
 #if (CCG_BB_ENABLE != 0)
-#include <billboard.h>
+#include <cy_pdaltmode_billboard.h>
 #endif /* (CCG_BB_ENABLE != 0) */
 
 #if CCG_HPI_ENABLE
@@ -91,7 +87,7 @@
 #endif /* CCG_HPI_ENABLE */
 
 #if DP_UFP_SUPP
-#include <hpd.h>
+#include <cy_usbpd_hpd.h>
 #endif /* DP_UFP_SUPP */
 
 #if BATTERY_CHARGING_ENABLE
@@ -385,17 +381,6 @@ static void app_bist_stm_handler(cy_stc_pdstack_context_t *ptrPdStackContext, cy
 #endif /* (CCG_LOAD_SHARING_ENABLE || CCG_HPI_AUTO_CMD_ENABLE  || CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING) */
 #endif /* ((!CY_PD_SINK_ONLY) && (CY_PD_REV3_ENABLE)) */
 
-alt_mode_config_t alt_mode_info[NO_OF_TYPEC_PORTS] =
-{
-    {
-        .altModeTrig = 0,
-        .dpCfgSupported = 0,
-        .dpMuxControl = 0,
-        .dpOper = 0,
-        .dpPrefMode = 0,
-    }
-};
-
 #if APP_PPS_SINK_SUPPORT
 uint8_t hpi_user_reg_handler(uint16_t addr, uint8_t size, uint8_t *data);
 void app_pps_sink_disable(uint8_t port);
@@ -516,7 +501,7 @@ bool app_validate_configtable_offsets(cy_stc_pdstack_context_t *ptrPdStackContex
         }
         else
 #endif /* CCG_TYPE_A_PORT_ENABLE */
-#if(!BCR) && !QC_AFC_SNK_EN
+#if(!BCR) && (!QC_AFC_SNK_EN)
         {
             if ((get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->port_n_bch_table_offset == 0u)  ||
                 (get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->port_n_bch_table_len < sizeof(cy_stc_legacy_charging_cfg_t)))
@@ -528,8 +513,8 @@ bool app_validate_configtable_offsets(cy_stc_pdstack_context_t *ptrPdStackContex
 #endif /* (BATTERY_CHARGING_ENABLE) || (QC_PPS_ENABLE) */
 
 #if POWER_BANK
-        if ((portconf->bat_chg_tbl_offset == 0u)  ||
-            (pd_get_ptr_bat_chg_tbl(port)->table_len < sizeof(bat_chg_params_t)))
+        if ((get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->port_n_bch_table_offset == 0u)  ||
+            (get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->port_n_bch_table_len < sizeof(cy_stc_legacy_charging_cfg_t)))
         {
             return false;
         }
@@ -562,8 +547,8 @@ bool app_validate_configtable_offsets(cy_stc_pdstack_context_t *ptrPdStackContex
         {
             /* QAC suppression 3415: The check on the right hand side of logical operator
              * is read only. */
-            if ((portconf->bb_tbl_offset == 0u)  ||
-                (pd_get_ptr_bb_tbl(port)->table_len < 8u)) /* PRQA S 3415 */
+            if ((get_auto_config(ptrPdStackContext->ptrUsbPdContext)->bb_offset == 0u)  ||
+                (get_auto_config(ptrPdStackContext->ptrUsbPdContext)->bb_size < 8u)) /* PRQA S 3415 */
             {
                 return false;
             }
@@ -612,13 +597,13 @@ static void ccg_activity_timer_cb(cy_timer_id_t id, void *callbackContext)
 #if CCG_APP_TASK_LPM_SLOW_POLL_ENABLE
     if(app_deepsleep_allowed())
     {
-        (void)cy_sw_timer_start (context->ptrTimerContext, context, CCG_ACTIVITY_TIMER_ID, CCG_ACTIVITY_TIMER_PERIOD_SLEEP,
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext, context, CY_PDUTILS_CCG_ACTIVITY_TIMER, CCG_ACTIVITY_TIMER_PERIOD_SLEEP,
             ccg_activity_timer_cb);
     }
     else
 #endif /* CCG_APP_TASK_LPM_SLOW_POLL_ENABLE */
     {
-        (void)cy_sw_timer_start (context->ptrTimerContext, context, CCG_ACTIVITY_TIMER_ID, CCG_ACTIVITY_TIMER_PERIOD,
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (context->ptrTimerContext, context, CY_PDUTILS_CCG_ACTIVITY_TIMER, CCG_ACTIVITY_TIMER_PERIOD,
             ccg_activity_timer_cb);
     }
 }
@@ -736,7 +721,7 @@ void ccg_app_task_init(void)
     (CCG_TEMP_BASED_VOLTAGE_THROTTLING == 1) || (CCG_VIN_BASED_VOLTAGE_THROTTLING == 1) ||\
     (CCG_LOAD_SHARING_ENABLE == 1) || (CCG_PASC_VALLEY_FW_ALGO_ENABLE == 1) || (WATCHDOG_OVER_POLL_TIMER == 1))
     ccg_activity_timer_timeout = false;
-    (void)cy_sw_timer_start (solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext, solution_fn_handler->Get_PdStack_Context(0), CCG_ACTIVITY_TIMER_ID, CCG_ACTIVITY_TIMER_PERIOD,
+    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext, solution_fn_handler->Get_PdStack_Context(0), CY_PDUTILS_CCG_ACTIVITY_TIMER, CCG_ACTIVITY_TIMER_PERIOD,
             ccg_activity_timer_cb);
 #endif /* (OTP_ENABLE == 1) || (POWER_BANK == 1) || (CCG_TYPE_A_PORT_ENABLE == 1) */
 }
@@ -784,7 +769,8 @@ static bool app_is_vdm_task_ready(cy_stc_pdstack_context_t *ptrPdStackContext)
         retval = app_stat->cbl_disc_id_finished;
 #endif /* (!CY_PD_CBL_DISC_DISABLE) */
     }
-
+#else
+    (void)ptrPdStackContext;
 #endif /* DFP_ALT_MODE_SUPP */
 
     return retval;
@@ -796,21 +782,21 @@ cy_en_pdstack_status_t app_disable_pd_port(cy_stc_pdstack_context_t *ptrPdStackC
     cy_en_pdstack_status_t retval = CY_PDSTACK_STAT_SUCCESS;
     uint8_t port = ptrPdStackContext->port;
 
-    if (cy_sw_timer_is_running (ptrPdStackContext->ptrTimerContext, APP_FAULT_RECOVERY_TIMER))
+    if (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning ) (ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext, APP_FAULT_RECOVERY_TIMER)))
     {
         /* If the HPI Master is asking us to disable the port, make sure all fault protection state is cleared. */
         app_get_status(port)->fault_status &= ~(
                 APP_PORT_VBUS_DROP_WAIT_ACTIVE | APP_PORT_SINK_FAULT_ACTIVE | APP_PORT_DISABLE_IN_PROGRESS |
                 APP_PORT_VCONN_FAULT_ACTIVE | APP_PORT_V5V_SUPPLY_LOST);
 
-        cy_sw_timer_stop(ptrPdStackContext->ptrTimerContext, APP_FAULT_RECOVERY_TIMER);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_FAULT_RECOVERY_TIMER));
     }
     else
     {
         /* Just pass the call on-to the stack. */
         if (ptrPdStackContext->dpmConfig.dpmEnabled)
         {
-            retval = Cy_PdStack_Dpm_SendTypecCommand(ptrPdStackContext,  CY_PDSTACK_DPM_CMD_PORT_DISABLE,  cbk);
+            retval = CALL_MAP(Cy_PdStack_Dpm_SendTypecCommand)(ptrPdStackContext,  CY_PDSTACK_DPM_CMD_PORT_DISABLE,  cbk);
             return retval;
         }
     }
@@ -852,7 +838,7 @@ static void app_bad_sink_timeout_cbk(cy_timer_id_t id,  void * callbackCtx)
         ccg_power_throttle_set_stop_power_throttle(context, true);
 #endif /* (CCG_LOAD_SHARING_ENABLE) */
         /* Initiate Type-C error recovery. */
-        (void)Cy_PdStack_Dpm_SendTypecCommand(context, CY_PDSTACK_DPM_CMD_TYPEC_ERR_RECOVERY, NULL);
+        (void)CALL_MAP(Cy_PdStack_Dpm_SendTypecCommand)(context, CY_PDSTACK_DPM_CMD_TYPEC_ERR_RECOVERY, NULL);
         gl_bad_sink_recovery_handled[port] = true;
     }
     else if ((true == gl_bad_sink_timeout_status[port]) &&
@@ -879,7 +865,7 @@ static void app_cbl_dsc_callback (cy_stc_pdstack_context_t *ptrPdStackContext, c
     /* Keep repeating the DPM command until we succeed. */
     if (resp == CY_PDSTACK_SEQ_ABORTED)
     {
-        (void)cy_sw_timer_start (ptrPdStackContext->ptrTimerContext, ptrPdStackContext , APP_CBL_DISC_TRIGGER_TIMER, APP_CBL_DISC_TIMER_PERIOD, app_cbl_dsc_timer_cb);
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (ptrPdStackContext->ptrTimerContext, ptrPdStackContext , GET_APP_TIMER_ID(ptrPdStackContext,APP_CBL_DISC_TRIGGER_TIMER), APP_CBL_DISC_TIMER_PERIOD, app_cbl_dsc_timer_cb);
     }
 }
 
@@ -888,7 +874,7 @@ static void app_cbl_dsc_timer_cb (cy_timer_id_t id, void *callbackContext)
 {
     cy_stc_pdstack_context_t *pdstack_context = callbackContext;
 
-    if (Cy_PdStack_Dpm_SendPdCommand(pdstack_context, CY_PDSTACK_DPM_CMD_INITIATE_CBL_DISCOVERY, NULL, false, app_cbl_dsc_callback) != CY_PDSTACK_STAT_SUCCESS )
+    if (CALL_MAP(Cy_PdStack_Dpm_SendPdCommand)(pdstack_context, CY_PDSTACK_DPM_CMD_INITIATE_CBL_DISCOVERY, NULL, false, app_cbl_dsc_callback) != CY_PDSTACK_STAT_SUCCESS )
     {
         /* Start timer which will send initiate the DPM command after a delay. */
         (void)app_cbl_dsc_callback(pdstack_context, CY_PDSTACK_SEQ_ABORTED, 0);
@@ -896,8 +882,7 @@ static void app_cbl_dsc_timer_cb (cy_timer_id_t id, void *callbackContext)
 }
 #endif /* (!CY_PD_CBL_DISC_DISABLE) */
 
-#if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-
+#if (DFP_ALT_MODE_SUPP)
 static void app_exit_all_cbk (cy_timer_id_t id, void *callbackContext)
 {
     (void)id;
@@ -910,19 +895,17 @@ static void app_exit_alt_modes_cbk(cy_stc_pdstack_context_t *ptrPdStackContext, 
 {
     (void)stat;
     /* Run timer to run VDM layer restart */
-    (void)cy_sw_timer_start (ptrPdStackContext->ptrTimerContext, ptrPdStackContext , APP_RESET_VDM_LAYER_TIMER, APP_RESET_VDM_TIMER_PERIOD, app_exit_all_cbk);
+    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (ptrPdStackContext->ptrTimerContext, ptrPdStackContext , GET_APP_TIMER_ID(ptrPdStackContext,APP_RESET_VDM_LAYER_TIMER), APP_RESET_VDM_TIMER_PERIOD, app_exit_all_cbk);
 
 }
-#endif /* (DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
+#endif /* DFP_ALT_MODE_SUPP */
 
 bool app_vdm_layer_reset(cy_stc_pdstack_context_t *ptrPdStackContext)
 {
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-
-    app_status_t *app = app_get_status(ptrPdStackContext->port);
     bool stat = true;
 
-    if ((ptrPdStackContext->dpmConfig.contractExist) && (ptrPdStackContext.dpmConfig== PRT_TYPE_DFP))
+    if ((ptrPdStackContext->dpmConfig.contractExist) && (ptrPdStackContext->dpmConfig.curPortType == CY_PD_PRT_TYPE_DFP))
     {
 #if DFP_ALT_MODE_SUPP
         if (app->alt_mode_entered == false)
@@ -931,7 +914,7 @@ bool app_vdm_layer_reset(cy_stc_pdstack_context_t *ptrPdStackContext)
              * Reset the alternate mode state machine. The cable discovery complete flag is also cleared so
              * that alternate mode state machine can be started at the end of cable discovery.
              */
-            alt_mode_layer_reset(port);
+            Cy_PdAltMode_Mngr_LayerReset((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext));
         }
         else
         {
@@ -942,13 +925,13 @@ bool app_vdm_layer_reset(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* DFP_ALT_MODE_SUPP */
 
 #if (!CY_PD_CBL_DISC_DISABLE)
-        app->cbl_disc_id_finished = false;
-        app->disc_cbl_pending     = true;
+        ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.cbl_disc_id_finished = false;
+        ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.disc_cbl_pending     = true;
 
         /* Ask PD stack to trigger cable discovery. */
-        if (Cy_PdStack_Dpm_SendPdCommand(pdstack_context, CY_PDSTACK_DPM_CMD_INITIATE_CBL_DISCOVERY, NULL, false, app_cbl_dsc_callback) !=  CY_PDSTACK_STAT_SUCCESS)
+        if (Cy_PdStack_Dpm_SendPdCommand(ptrPdStackContext, CY_PDSTACK_DPM_CMD_INITIATE_CBL_DISCOVERY, NULL, false, app_cbl_dsc_callback) !=  CY_PDSTACK_STAT_SUCCESS)
         {
-            (void)cy_sw_timer_start (ptrPdStackContext->ptrTimerContext, ptrPdStackContext , APP_CBL_DISC_TRIGGER_TIMER, APP_CBL_DISC_TIMER_PERIOD, app_cbl_dsc_timer_cb);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (ptrPdStackContext->ptrTimerContext, ptrPdStackContext , GET_APP_TIMER_ID(ptrPdStackContext,APP_CBL_DISC_TRIGGER_TIMER), APP_CBL_DISC_TIMER_PERIOD, app_cbl_dsc_timer_cb);
         }
 #endif /* (!CY_PD_CBL_DISC_DISABLE) */
     }
@@ -956,9 +939,9 @@ bool app_vdm_layer_reset(cy_stc_pdstack_context_t *ptrPdStackContext)
     {
 #if VCONN_OCP_ENABLE
         /* If there is no PD contract in place and we are VConn source, enable VConn and move on. */
-        if ((ptrPdStackContext->dpmConfig.attach) && (ptrUsbPdStackContext.dpmConfig->vconnLogical))
+        if ((ptrPdStackContext->dpmConfig.attach) && (ptrPdStackContext->dpmConfig.vconnLogical))
         {
-            (void)vconn_enable (port, dpm_stat->revPol);
+            (void)vconn_enable (ptrPdStackContext, ptrPdStackContext->dpmConfig.revPol);
         }
 #endif /* VCONN_OCP_ENABLE */
 
@@ -996,12 +979,12 @@ uint8_t app_task(cy_stc_pdstack_context_t *ptrPdStackContext)
 
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
     /* If VDM processing is allowed */
-    if (app_get_status(ptrPdStackContext->port)->vdm_task_en != false)
+    if (((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.vdm_task_en != false)
     {
         /* Wait for cable discovery completion before going on Alt. Modes. */
-        if (app_is_vdm_task_ready (port))
+        if (app_is_vdm_task_ready (ptrPdStackContext))
         {
-            vdm_task_mngr (port);
+            Cy_PdAltMode_VdmTask_Manager (ptrPdStackContext->ptrAltModeContext);
         }
     }
 #endif /* (DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
@@ -1014,19 +997,16 @@ uint8_t app_task(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* NCP_CLIND_ENABLE */
 
 #if (CCG_BB_ENABLE != 0)
-    if (bb_is_present(port) != false)
+    if (Cy_PdAltMode_Billboard_IsPresent(ptrPdStackContext->ptrAltModeContext) != false)
     {
-        bb_task(port);
+        Cy_PdAltMode_Billboard_Task(ptrPdStackContext->ptrAltModeContext);
     }
 #endif /* (CCG_BB_ENABLE != 0) */
 
 #if BATTERY_CHARGING_ENABLE
-    uint8_t i;
-    for (i = 0; i < NO_OF_BC_PORTS; i++)
-    {
-        cy_stc_pdstack_context_t * pdstack_ctx = solution_fn_handler->Get_PdStack_Context(i);
-        (void)bc_fsm(pdstack_ctx);
-    }
+
+    (void)bc_fsm(ptrPdStackContext);
+
 #endif /* BATTERY_CHARGING_ENABLE */
 
 #if RIDGE_SLAVE_ENABLE
@@ -1039,7 +1019,7 @@ uint8_t app_task(cy_stc_pdstack_context_t *ptrPdStackContext)
             (gl_app_status[port].is_mux_busy == false)
        )
     {
-        set_mux (port, gl_app_mux_saved_state[port], gl_app_mux_saved_custom_data[port]);
+        Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, gl_app_mux_saved_state[port], gl_app_mux_saved_custom_data[port]);
     }
 #endif /* (MUX_DELAY_EN) || (((!RIDGE_I2C_HPD_ENABLE) && (DP_DFP_SUPP))) */
 
@@ -1200,7 +1180,7 @@ bool app_sleep(void)
 #endif /* (NO_OF_TYPEC_PORTS > 1) */
     {
 #if CCG_BB_ENABLE
-        if (!bb_enter_deep_sleep(solution_fn_handler->Get_PdStack_Context(port)))
+        if (!Cy_PdAltMode_Billboard_EnterDeepSleep((solution_fn_handler->Get_PdStack_Context(port))->ptrAltModeContext))
         {
             stat = false;
             return stat;
@@ -1227,7 +1207,7 @@ bool app_sleep(void)
         }
 
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-        if (!is_vdm_task_idle(port))
+        if (!Cy_PdAltMode_VdmTask_IsIdle((solution_fn_handler->Get_PdStack_Context(port))->ptrAltModeContext))
         {
             stat = false;
             return stat;
@@ -1237,7 +1217,7 @@ bool app_sleep(void)
 #if (DP_UFP_SUPP) && (CCG_HPD_RX_ENABLE)
         /* CDT 245126 workaround: Check if HPD RX Activity timer is running.
          * If yes, don't enter deep sleep. */
-        if (!is_hpd_rx_state_idle (port))
+        if (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning ) ((solution_fn_handler->Get_PdStack_Context(port))->ptrTimerContext, HPD_RX_ACTIVITY_TIMER_ID))
         {
             stat = false;
             return stat;
@@ -1250,7 +1230,7 @@ bool app_sleep(void)
     for (port = 0; port < NO_OF_TYPEC_PORTS; port++)
     {
         /* Prepare for deep-sleep entry. */
-        alt_mode_mngr_sleep(port);
+        Cy_PdAltMode_Mngr_Sleep((solution_fn_handler->Get_PdStack_Context(port))->ptrAltModeContext);
     }
 #endif /* (DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
 
@@ -1264,7 +1244,7 @@ void app_wakeup(void)
 
     for (port = 0; port < NO_OF_TYPEC_PORTS; port++)
     {
-        alt_mode_mngr_wakeup (port);
+        Cy_PdAltMode_Mngr_Wakeup ((solution_fn_handler->Get_PdStack_Context(port))->ptrAltModeContext);
     }
 #endif /* (DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
 }
@@ -1334,11 +1314,11 @@ bool app_extd_msg_handler(cy_stc_pdstack_context_t *ptrPdStackContext, cy_stc_pd
             )
        )
     {
-        (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
-                                APP_CHUNKED_MSG_RESP_TIMER, 45, app_send_not_supported_cb);
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
+                GET_APP_TIMER_ID(ptrPdStackContext,APP_CHUNKED_MSG_RESP_TIMER), 45, app_send_not_supported_cb);
 
         /* Stop the PD_GENERIC_TIMER to prevent premature return to ready state. */
-        cy_sw_timer_stop(ptrPdStackContext->ptrTimerContext, PD_GENERIC_TIMER);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext, CY_PDSTACK_GET_PD_TIMER_ID(ptrPdStackContext,PD_GENERIC_TIMER));
     }
     else
     {
@@ -1373,7 +1353,7 @@ bool app_extd_msg_handler(cy_stc_pdstack_context_t *ptrPdStackContext, cy_stc_pd
         extd_dpm_buf.extdHdr.extd.request = 1u;
         extd_dpm_buf.extdHdr.extd.chunkNum = pd_pkt_p->hdr.hdr.chunkNum + 1u;
         extd_dpm_buf.datPtr = (uint8_t*)&gl_extd_dummy_data;
-        extd_dpm_buf.timeout = CY_PD_SENDER_RESPONSE_TIMER_PERIOD;
+        extd_dpm_buf.timeout = ptrPdStackContext->senderRspTimeout;
 
         /* Send next chunk request */
         (void)Cy_PdStack_Dpm_SendPdCommand(ptrPdStackContext,CY_PDSTACK_DPM_CMD_SEND_EXTENDED,
@@ -1410,7 +1390,7 @@ static void ame_tmr_cbk(cy_timer_id_t id,  void * callbackCtx)
     (void)id;
     cy_stc_pdstack_context_t* context = callbackCtx;
     /* Alternate modes are reset in vdm_task_mngr_deinit(). */
-    bb_enable(context->port, BB_CAUSE_AME_TIMEOUT);
+    Cy_PdAltMode_Billboard_Enable(context->ptrAltModeContext, BB_CAUSE_AME_TIMEOUT);
 }
 #endif /* (CCG_BB_ENABLE != 0) */
 
@@ -1431,7 +1411,7 @@ void app_update_bc_src_snk_support(cy_stc_pdstack_context_t *ptrPdStackContext, 
 
 void app_update_bc_snk_support(cy_stc_pdstack_context_t *ptrPdStackContext, uint8_t disable)
 {
-#if BATTERY_CHARGING_ENABLE && (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_WLC1))
+#if BATTERY_CHARGING_ENABLE && (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_SERIES_WLC1))
 #if (CY_PD_SINK_ONLY)
     gl_app_status[ptrPdStackContext->port].bc_snk_disabled = (bool)(disable);
     if (disable)
@@ -1445,7 +1425,7 @@ void app_update_bc_snk_support(cy_stc_pdstack_context_t *ptrPdStackContext, uint
 #else
     (void)ptrPdStackContext;
     (void)disable;
-#endif /* BATTERY_CHARGING_ENABLE && (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_WLC1) */
+#endif /* BATTERY_CHARGING_ENABLE && (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_SERIES_WLC1) */
 }
 
 #if ((CY_PD_REV3_ENABLE) && (NB_HOST_SUPPORT_ENABLE))
@@ -1599,7 +1579,7 @@ void app_update_sys_pwr_state(uint8_t state)
 #endif /* BB_RETIMER_ENABLE */
 }
 
-#if (BATTERY_CHARGING_ENABLE && ((defined(CY_DEVICE_CCG5)) || (((defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_WLC1) || defined(CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) && defined(CCG_CDP_EN)))))
+#if (BATTERY_CHARGING_ENABLE && ((defined(CY_DEVICE_CCG5)) || (((defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_SERIES_WLC1) || defined(CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) && defined(CCG_CDP_EN)))))
 
 /* Function to start the CCG3PA/CCG5 BC 1.2 source state machine. */
 void app_bc_12_sm_start(cy_stc_pdstack_context_t *ptrPdStackContext)
@@ -1628,110 +1608,7 @@ void app_bc_12_sm_start(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* (((defined(CY_DEVICE_CCG3PA) || defined(CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) && defined(CCG_CDP_EN))) */
 }
 
-#endif /* (BATTERY_CHARGING_ENABLE && ((defined(CY_DEVICE_CCG5)) || (((defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_WLC1) || defined(CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) && defined(CCG_CDP_EN))))) */
-
-static mux_select_t app_mux_state[NO_OF_TYPEC_PORTS];
-
-bool set_mux(cy_stc_pdstack_context_t* context, mux_select_t cfg, uint32_t custom_data)
-{
-    bool retval = true;
-    uint8_t port = context->port;
-    (void)custom_data;
-
-    if (app_get_status(port)->skip_mux_config != false)
-        return retval;
-
-    if (cfg == MUX_CONFIG_DEINIT)
-    {
-#if MUX_DELAY_EN
-        /* Stop Delay timer */
-        timer_stop(port, APP_MUX_DELAY_TIMER);
-
-        /* Clear the MUX busy flag. */
-        app_get_status(port)->is_mux_busy = false;
-        app_mux_update_req[port] = false;
-#endif /* MUX_DELAY_EN */
-
-        app_mux_state[port] = cfg;
-        return retval;
-    }
-
-#if BB_RETIMER_ENABLE && ICL_ENABLE
-    if(PD_GET_PTR_ICL_TGL_CFG_TBL(port)->icl_dual_retimer_enable != 0)
-    {
-        /* If application layer requested to ignore set_mux calls, do so.
-         * This is only used during retimer firmware updates */
-        if (gl_ignore_mux_changes[port])
-            return retval;
-    }
-#endif /* BB_RETIMER_ENABLE && ICL_ENABLE  */
-
-#if MUX_DELAY_EN
-    if (app_get_status(port)->is_mux_busy == false)
-    {
-        /* Run MUX delay timer */
-        app_get_status(port)->is_mux_busy = true;
-        timer_start(port, APP_MUX_DELAY_TIMER, PD_GET_PTR_ICL_TGL_CFG_TBL(0)->soc_mux_config_delay, mux_cbk);
-        app_mux_update_req[port] = false;
-
-#if MUX_POLL_EN
-        /* Run MUX polling timer */
-        timer_start(port, APP_MUX_POLL_TIMER, APP_MUX_POLL_TIMER_PERIOD, mux_poll_cbk);
-#endif /* MUX_POLL_EN */
-    }
-    else
-    {
-        app_mux_saved_custom_data[port] = custom_data;
-        app_mux_saved_state[port]       = cfg;
-        app_mux_update_req[port]        = true;
-        return retval;
-    }
-#endif /* MUX_DELAY_EN */
-
-    /* Store the current MUX configuration. */
-    app_mux_state[port] = cfg;
-    app_mux_state[port] = app_mux_state[port];
-#if DPM_DEBUG_SUPPORT
-    mux_push_to_buf(port, cfg);
-#endif /* DPM_DEBUG_SUPPORT */
-
-#if (MUX_TYPE == DP_MUX)
-    if (cfg <= MUX_CONFIG_RIDGE_CUSTOM)
-    {
-        retval = mux_ctrl_set_cfg (port, cfg, context->dpmConfig.polarity);
-#if (CCG_HPI_ENABLE) && (CCG_HPI_PD_ENABLE)
-        if (!retval)
-        {
-            /* Notify the EC if there is a MUX access error. */
-            hpi_send_hw_error_event (port, SYS_HW_ERROR_MUX_ACCESS);
-        }
-#endif
-    }
-    else
-    {
-        retval = false;
-    }
-
-#elif (MUX_TYPE == RIDGE_MUX)
-    /* In TBT use cases, this call is used to configure the SBU Mux.
-     * This has to be configured before notifying the SoC. */
-    if (cfg <= MUX_CONFIG_RIDGE_CUSTOM)
-    {
-        retval = mux_ctrl_set_cfg (port, cfg, context->dpmConfig.polarity);
-    }
-
-#if RIDGE_SLAVE_ENABLE
-    /*
-       Update the Ridge/SoC data status register. Do this even if the above call failed.
-       This function is not expected to fail as it is an internal operation.
-     */
-    ridge_set_mux (context, cfg, context->dpmConfig.polarity, custom_data);
-#endif /* RIDGE_SLAVE_ENABLE */
-
-#endif /* MUX_TYPE */
-
-    return retval;
-}
+#endif /* (BATTERY_CHARGING_ENABLE && ((defined(CY_DEVICE_CCG5)) || (((defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_SERIES_WLC1) || defined(CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) && defined(CCG_CDP_EN))))) */
 
 #if HOST_ALERT_MSG_ENABLE
 static uint32_t gl_get_bat_status[NO_OF_TYPEC_PORTS];
@@ -2239,7 +2116,7 @@ static void app_psrc_invalid_vbus_dischg_disable(cy_stc_pdstack_context_t *ptrPd
     {
         gl_app_invalid_vbus_dis_on[ptrPdStackContext->port] = false;
         solution_fn_handler->app_get_callback_ptr(ptrPdStackContext)->vbus_discharge_off(ptrPdStackContext);
-        cy_sw_timer_stop(ptrPdStackContext->ptrTimerContext, APP_PSOURCE_DIS_TIMER);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_PSOURCE_DIS_TIMER));
     }
 }
 
@@ -2303,7 +2180,9 @@ static void app_data_reset_timer_cb(cy_timer_id_t id,  void * callbackCtx)
         /* DFP needs to re-enable USBx connections at completion of Data_Reset. */
         if (ptrPdStackContext->dpmConfig.curPortType  == CY_PD_PRT_TYPE_DFP)
         {
-            set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0);
+#if (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP)
+            Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0);
+#endif
         }
 
 #if AMD_SUPP_ENABLE
@@ -2331,9 +2210,8 @@ static void app_data_reset_timer_cb(cy_timer_id_t id,  void * callbackCtx)
 
 void app_data_reset_accepted (cy_stc_pdstack_context_t *ptrPdStackContext)
 {
-    uint8_t port = ptrPdStackContext->port;
-
 #if AMD_SUPP_ENABLE
+    uint8_t port = ptrPdStackContext->port;
     if (app_get_status(port)->apu_reset_pending != false)
     {
         /* Allow APU processing */
@@ -2342,51 +2220,41 @@ void app_data_reset_accepted (cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* AMD_SUPP_ENABLE */
 
     /* Make sure any Alternate Mode states have been cleared. */
-    alt_mode_layer_reset (port);
+    Cy_PdAltMode_Mngr_LayerReset ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext));
 
     /* Mark USB4 not active as Data Reset has been accepted. */
-    app_get_status(port)->usb4_active = false;
+    ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.usb4_active = false;
 
 #if (!CY_PD_CBL_DISC_DISABLE)
     /* Cable discovery needs to be repeated after data reset is complete. */
-    app_get_status(port)->cbl_disc_id_finished = false;
+    ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.cbl_disc_id_finished = false;
 #endif /* (!CY_PD_CBL_DISC_DISABLE) */
 
     if (ptrPdStackContext->dpmConfig.curPortType == CY_PD_PRT_TYPE_DFP)
     {
         /* Start the tDataReset timer in case of DFP. */
-        (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, APP_DATA_RESET_TIMER, APP_DATA_RESET_TIMER_PERIOD, app_data_reset_timer_cb);
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_DATA_RESET_TIMER), APP_DATA_RESET_TIMER_PERIOD, app_data_reset_timer_cb);
         /* Isolate the USBx connections as soon as DATA_RESET has been accepted. */
 #if AMD_SUPP_ENABLE
-        set_mux (ptrPdStackContext, MUX_CONFIG_ISOLATE, AMD_DATA_RESET_B0_MASK);
+        Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_ISOLATE, AMD_DATA_RESET_B0_MASK);
 #else
-        set_mux (ptrPdStackContext, MUX_CONFIG_ISOLATE, 0u);
+#if (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP)
+        Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_ISOLATE, 0u);
+#endif
 #endif /* AMD_SUPP_ENABLE */
     }
     else
     {
         /* Switch to USB only configuration once data reset has been accepted. */
 #if AMD_SUPP_ENABLE
-        set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, AMD_DATA_RESET_B0_MASK);
+        Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, AMD_DATA_RESET_B0_MASK);
 #else
-        set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0u);
+#if (DFP_ALT_MODE_SUPP || UFP_ALT_MODE_SUPP)
+        Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
+#endif
 #endif /* AMD_SUPP_ENABLE */
     }
 }
-
-#if (!CY_PD_SINK_ONLY)
-static void debug_acc_src_psrc_enable(cy_timer_id_t id, void *callbackContext)
-{
-    (void)id;
-    cy_stc_pdstack_context_t *ptrPdStackContext = callbackContext;
-    app_status_t *app_stat = app_get_status(ptrPdStackContext->port);
-    /* Check if debug accessory is still attached before enabling VBUS.*/
-    if (app_stat->debug_acc_attached)
-    {
-        solution_fn_handler->app_get_callback_ptr(ptrPdStackContext)->psrc_enable(ptrPdStackContext, NULL);
-    }
-}
-#endif /* (!CY_PD_SINK_ONLY) */
 
 void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext, 
                cy_en_pdstack_app_evt_t evt, const void* dat)
@@ -2415,7 +2283,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
     bool async_change = false;
 #endif /* CCG_LOAD_SHARING_ENABLE */
 
-#if (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_LOAD_SHARING_ENABLE)
+#if ((CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_LOAD_SHARING_ENABLE) && CCG_REV3_HANDLE_BAD_SINK)
     bool pwr_throttle_cmd_pending = ccg_power_throttle_get_power_throttle_cmd_pending(ptrPdStackContext);
 #endif /* (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_LOAD_SHARING_ENABLE) */
 
@@ -2437,10 +2305,10 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 
 #if (MUX_TYPE != NONE_MUX)
             /* Initialize the MUX to its default settings (isolate). */
-            (void)solution_fn_handler->mux_ctrl_init (port);
+            (void)solution_fn_handler->mux_ctrl_init (ptrPdStackContext);
 #endif /* (MUX_TYPE != NONE_MUX) */
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-            gl_app_status[port].vdm_prcs_failed = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.vdm_prcs_failed = false;
 #endif /* ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP)) */
 #if BB_RETIMER_ENABLE
             if (dpm_stat->dead_bat == true)
@@ -2467,10 +2335,10 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 
 #if CCG_REV3_HANDLE_BAD_SINK
             /* Start bad sink timer */
-            if (!(cy_sw_timer_is_running (ptrPdStackContext->ptrTimerContext, APP_BAD_SINK_TIMEOUT_TIMER) && (true == gl_bad_sink_apdo_sel[port])))
+            if (!(CALL_MAP(Cy_PdUtils_SwTimer_IsRunning ) (ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_BAD_SINK_TIMEOUT_TIMER)) && (true == gl_bad_sink_apdo_sel[port])))
             {
-                cy_sw_timer_stop(ptrPdStackContext->ptrTimerContext, APP_BAD_SINK_TIMEOUT_TIMER);
-                (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, APP_BAD_SINK_TIMEOUT_TIMER, APP_BAD_SINK_TIMEOUT_TIMER_PERIOD, app_bad_sink_timeout_cbk);
+                CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_BAD_SINK_TIMEOUT_TIMER));
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_BAD_SINK_TIMEOUT_TIMER), APP_BAD_SINK_TIMEOUT_TIMER_PERIOD, app_bad_sink_timeout_cbk);
             }
 #if (CCG_LOAD_SHARING_ENABLE)
             if (true == gl_bad_device[port])
@@ -2489,8 +2357,9 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #endif /* (RIDGE_SLAVE_ENABLE) || (BB_RETIMER_ENABLE) || (AMD_SUPP_ENABLE) */
 
             /* This will also enable the USB (DP/DM) MUX where required. */
-            (void)set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0);
-
+#if (UFP_ALT_MODE_SUPP || DFP_ALT_MODE_SUPP)
+            Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
+#endif
             /* Clear all fault counters if we have seen a change in polarity from previous connection. */
             if (ptrPdStackContext->dpmConfig.polarity != gl_app_previous_polarity[port])
             {
@@ -2501,74 +2370,60 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 
         case APP_EVT_CONNECT:
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-            app_status[port].vdm_prcs_failed = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.vdm_prcs_failed = false;
 #endif /* ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP)) */
 #if (!CY_PD_CBL_DISC_DISABLE)
-            app_stat->cbl_disc_id_finished = false;
-            app_stat->disc_cbl_pending = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.cbl_disc_id_finished = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.disc_cbl_pending = false;
 #endif /* (!CY_PD_CBL_DISC_DISABLE) */
 
 #if (AUVDM_SUPPORT!= 0)
             ap_mode_init(port);
 #endif
-#if (!CY_PD_SINK_ONLY)
-            if (ptrPdStackContext->dpmConfig.attachedDev == CY_PD_DEV_DBG_ACC)
-            {
-                if(ptrPdStackContext->dpmConfig.curPortRole == CY_PD_PRT_ROLE_SOURCE)
-                {
-                    uint16_t mux_wait_delay = ptrPdStackContext->ptrDpmParams->muxEnableDelayPeriod;
-                    if (mux_wait_delay == 0u)
-                    {
-                        /* If the delay is 0 then changing it to 1 so that after 1ms cb is called to apply VBUS.*/
-                        mux_wait_delay = 1u;
-                    }
-                    (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
-                            APP_PSOURCE_EN_TIMER, mux_wait_delay, debug_acc_src_psrc_enable);
-                }
-                gl_app_status[port].debug_acc_attached = true;
+
 #if ((DEBUG_ACCESSORY_SNK_ENABLE) || (DEBUG_ACCESSORY_SRC_ENABLE))
-                if (
-                        (ptrPdStackContext->dpmConfig.attachedDev == DEV_DBG_ACC)
-                        &&
+            if (
+                    (ptrPdStackContext->dpmConfig.attachedDev == DEV_DBG_ACC)
+                    &&
 #if !DEBUG_ACCESSORY_SRC_ENABLE
-                        (ptrPdStackContext->dpmConfig.curPortRole == PRT_ROLE_SOURCE)
+                    (ptrPdStackContext->dpmConfig.curPortRole == PRT_ROLE_SINK)
 #elif !DEBUG_ACCESSORY_SNK_ENABLE
-                        (ptrPdStackContext->dpmConfig.curPortRole == PRT_ROLE_SINK)
+                    (ptrPdStackContext->dpmConfig.curPortRole == PRT_ROLE_SOURCE)
 #else /* DEBUG_ACCESSORY_SRC_ENABLE == 1 && DEBUG_ACCESSORY_SNK_ENABLE == 1 */
-                        (1)
+                    (1)
 #endif /* !DEBUG_ACCESSORY_SRC_ENABLE */
-                    )
-                {
+                )
+            {
 #if DEBUG_ACCESSORY_SRC_ENABLE
-                    if(ptrPdStackContext->dpmConfig.curPortRole == PRT_ROLE_SOURCE)
-                    {
-                        solution_fn_handler->app_get_callback_ptr(ptrPdStackContext)->psrc_enable(port, NULL);
-                    }
+                if(ptrPdStackContext->dpmConfig.curPortRole == PRT_ROLE_SOURCE)
+                {
+                    solution_fn_handler->app_get_callback_ptr(ptrPdStackContext)->psrc_enable(port, NULL);
+                }
 #endif /*DEBUG_ACCESSORY_SRC_ENABLE*/
 
 #if ((RIDGE_SLAVE_ENABLE) || (BB_RETIMER_ENABLE) || (AMD_SUPP_ENABLE))
-                    /* Enable USB2/3 bits when connected to a Debug Accessory. */
-                    gl_app_status[port].usb2_supp = true;
-                    gl_app_status[port].usb3_supp = true;
+                /* Enable USB2/3 bits when connected to a Debug Accessory. */
+                gl_app_status[port].usb2_supp = true;
+                gl_app_status[port].usb3_supp = true;
 #endif /* (RIDGE_SLAVE_ENABLE) || (BB_RETIMER_ENABLE) || (AMD_SUPP_ENABLE) */
 
-                    app_stat->debug_acc_attached = true;
-                    set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0);
-                }
-#endif /* ((DEBUG_ACCESSORY_SNK_ENABLE) || (DEBUG_ACCESSORY_SRC_ENABLE)) */
+                app_stat->debug_acc_attached = true;
+                Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
             }
-#endif /* (!CY_PD_SINK_ONLY) */
+#endif /* ((DEBUG_ACCESSORY_SNK_ENABLE) || (DEBUG_ACCESSORY_SRC_ENABLE)) */
+
 #if (CCG_BB_ENABLE != 0)
             /* Enable the AME timer on attach if in sink mode. */
-            if (gl_dpm_port_type[port] == PRT_TYPE_UFP)
+            if (ptrPdStackContext->dpmConfig.curPortType == CY_PD_PRT_TYPE_UFP)
             {
-                if (bb_bind_to_port(port) == CCG_STAT_SUCCESS)
+                if (Cy_PdAltMode_Billboard_BindToPort(ptrPdStackContext->ptrAltModeContext) == CY_PDSTACK_STAT_SUCCESS)
                 {
                     /* Start the AME timer in any case as the MUX needs to be setup in the callback in some cases. */
-                    (void)timer_start(port, (timer_id_t)APP_AME_TIMEOUT_TIMER, APP_AME_TIMEOUT_TIMER_PERIOD, ame_tmr_cbk);
+                    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
+                            (cy_timer_id_t)APP_AME_TIMEOUT_TIMER, APP_AME_TIMEOUT_TIMER_PERIOD, ame_tmr_cbk);
 
                     /* Leave self power status flag cleared as we do not have a PD contract in place. */
-                    bb_update_self_pwr_status (port, 0);
+                    Cy_PdAltMode_Billboard_UpdateSelfPwrStatus (ptrPdStackContext->ptrAltModeContext, 0);
                 }
             }
 #endif /* (CCG_BB_ENABLE != 0) */
@@ -2599,17 +2454,17 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #endif
 
 #if (!CY_PD_CBL_DISC_DISABLE)
-            app_stat->cbl_disc_id_finished = false;
-            app_stat->disc_cbl_pending = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.cbl_disc_id_finished = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.disc_cbl_pending = false;
 #endif /* (!CY_PD_CBL_DISC_DISABLE) */
 
 #if CCG_REV3_HANDLE_BAD_SINK
             if ((evt == APP_EVT_DISCONNECT) || (evt == APP_EVT_VBUS_PORT_DISABLE))
             {
                 /* Stop bad sink timer and clear bad sink status. */
-                if (!(cy_sw_timer_is_running (ptrPdStackContext->ptrTimerContext, (uint8_t)APP_BAD_SINK_TIMEOUT_TIMER) && (true == gl_bad_sink_apdo_sel[port])))
+                if (!(CALL_MAP(Cy_PdUtils_SwTimer_IsRunning ) (ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_BAD_SINK_TIMEOUT_TIMER)) && (true == gl_bad_sink_apdo_sel[port])))
                 {
-                    cy_sw_timer_stop(ptrPdStackContext->ptrTimerContext, (cy_timer_id_t)APP_BAD_SINK_TIMEOUT_TIMER);
+                    CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_BAD_SINK_TIMEOUT_TIMER));
                 }
                 if ((false != gl_bad_sink_timeout_status[port]) && (false != gl_bad_sink_recovery_handled[port]))
                 {
@@ -2618,7 +2473,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                      * In this case, we need to defer clearing this flag until we
                      * are sure this is a physical detach.
                      */
-                    (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, APP_BAD_SINK_TIMEOUT_TIMER, 300u, app_bad_sink_timeout_cbk);
+                    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_BAD_SINK_TIMEOUT_TIMER), 300u, app_bad_sink_timeout_cbk);
                 }
                 else
                 {
@@ -2674,13 +2529,13 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                 gl_app_hard_rst_sent_rcvd[port] = true;
 
 #if AMD_RETIMER_ENABLE
-                if (gl_dpm_port_type[port] != PRT_TYPE_UFP)
+                if (ptrPdStackContext->dpmConfig.curPortType != CY_PD_PRT_TYPE_UFP)
                 {
                     /* Disable and then re-enable the retimer with a delay. */
                     amd_retimer_status_update (port, 0x00);
                     amd_retimer_rst(port);
                      /* Drop all previous MUX status updates and update the status as no data connection. */
-                    set_mux (port, MUX_CONFIG_ISOLATE, 0);
+                    Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_ISOLATE, 0u);
                 }
 #endif /* AMD_RETIMER_ENABLE */
 
@@ -2697,7 +2552,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 
 #if RIDGE_SLAVE_ENABLE
                     /* Drop all previous MUX status updates and update the status as 0 (no data connection). */
-                    set_mux (ptrPdStackContext, MUX_CONFIG_DEINIT, 0);
+                    Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_DEINIT, 0u);
 #endif /* RIDGE_SLAVE_ENABLE */
 
 #if ((BB_RETIMER_ENABLE) || (AMD_RETIMER_ENABLE))
@@ -2708,8 +2563,8 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                 else
                 {
                     /* Run MUX delay timer */
-                    (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContextICL_HARD_RST_TIMER,
-                                timer_get_count(port, APP_MUX_DELAY_TIMER) + 2,
+                    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContextICL_HARD_RST_TIMER,
+                                timer_get_count(port, GET_APP_TIMER_ID(ptrPdStackContext,APP_MUX_DELAY_TIMER)) + 2,
                                 app_hard_rst_retimer_cbk);
                     break;
                 }
@@ -2752,7 +2607,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
             }
 #endif /* (BB_RETIMER_ENABLE || AMD_RETIMER_ENABLE) */
 
-            vdm_task_mngr_deinit (port);
+            Cy_PdAltMode_VdmTask_MngrDeInit (ptrPdStackContext->ptrAltModeContext);
 #if ((defined(CCG5)) || (defined(CCG5C)) || (defined(CCG6)) || (defined(CCG6DF)) || (defined(CCG6SF)))
             timer_stop (port, APP_CBL_DISC_TRIGGER_TIMER);
 #endif /* ((defined(CCG5)) || (defined(CCG5C)) || (defined(CCG6)) || (defined(CCG6DF)) || (defined(CCG6SF))) */
@@ -2775,8 +2630,9 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                     set_retimer_status(port, true);
                 }
 #endif /* BB_RETIMER_ENABLE */
-
-                (void)set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0);
+#if (UFP_ALT_MODE_SUPP || DFP_ALT_MODE_SUPP)
+                Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
+#endif
             }
             else
             {
@@ -2786,9 +2642,11 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                 if (!typec_only)
                 {
 #if !RIDGE_SLAVE_ENABLE
-                    set_mux (ptrPdStackContext, MUX_CONFIG_ISOLATE, 0);
+#if (UFP_ALT_MODE_SUPP || DFP_ALT_MODE_SUPP)
+                    Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_ISOLATE, 0u);
+#endif
 #endif /* !RIDGE_SLAVE_ENABLE */
-                    cy_sw_timer_stop (ptrPdStackContext->ptrTimerContext, APP_AME_TIMEOUT_TIMER);
+                    CALL_MAP(Cy_PdUtils_SwTimer_Stop) (ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_AME_TIMEOUT_TIMER));
 
 #if BB_RETIMER_ENABLE
 #if (!CY_PD_SINK_ONLY)
@@ -2806,12 +2664,12 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #endif /* BB_RETIMER_ENABLE */
 
 #if RIDGE_SLAVE_ENABLE
-                    set_mux(ptrPdStackContext, MUX_CONFIG_RIDGE_CUSTOM, NO_DATA);
+                    Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_RIDGE_CUSTOM, NO_DATA);
 #endif /* RIDGE_SLAVE_ENABLE */
 
 #if AMD_SUPP_ENABLE
                     /* Drop all previous MUX status updates and update the status as 0 (no data connection). */
-                    set_mux (port, MUX_CONFIG_ISOLATE, 0);
+                    Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_ISOLATE, 0u);
 #endif
                 }
             }
@@ -2886,10 +2744,10 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #if CCG_BB_ENABLE
                 if (evt == APP_EVT_DISCONNECT)
                 {
-                    (void)bb_disable (port, true);
+                    (void)Cy_PdAltMode_Billboard_Disable (ptrPdStackContext->ptrAltModeContext, true);
 
                     /* Clear self power status flag cleared on disconnect. */
-                    bb_update_self_pwr_status (port, 0);
+                    Cy_PdAltMode_Billboard_UpdateSelfPwrStatus (ptrPdStackContext->ptrAltModeContext, 0);
                 }
 #endif /* CCG_BB_ENABLE */
             }
@@ -2950,9 +2808,9 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #if (!CY_PD_CBL_DISC_DISABLE)
         case APP_EVT_EMCA_NOT_DETECTED:
         case APP_EVT_EMCA_DETECTED:
-            app_stat->cbl_disc_id_finished = true;
-            app_stat->disc_cbl_pending = false;
-            app_stat->vdm_prcs_failed = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.cbl_disc_id_finished = true;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.disc_cbl_pending = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.vdm_prcs_failed = false;
 
 #if DFP_ALT_MODE_SUPP
             /* Notify VDM discovery layer that it can proceed. */
@@ -2964,7 +2822,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
             /* Update the SoC after cable discovery if DR swap is accepted.*/
             if(dpm_stat->contract_exist)
             {
-                set_mux (port, MUX_CONFIG_SS_ONLY, 0);
+                Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
             }
 #endif /* !(DFP_ALT_MODE_SUPP) */
 #endif /* RIDGE_SLAVE_ENABLE */
@@ -3010,7 +2868,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #endif /* CCG_USB4_SUPPORT_ENABLE */
                 {
                     /* Set MUX to USB after DR swap */
-                    set_mux (port, MUX_CONFIG_SS_ONLY, 0);
+                    Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
                 }
 #endif /* AMD_SUPP_ENABLE */
 
@@ -3026,22 +2884,23 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #endif /* CCG_USB4_SUPPORT_ENABLE */
                 {
                     /* Device data role changed. Reset alternate mode layer. */
-                    alt_mode_layer_reset(port);
+                    Cy_PdAltMode_Mngr_LayerReset((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext));
                 }
 #endif /* (DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
 
 #if (CCG_BB_ENABLE != 0)
                 /* Start tAME Timer to enable BB functionality */
-                if (gl_dpm_port_type[port] == PRT_TYPE_UFP)
+                if (ptrPdStackContext->dpmConfig.curPortType == CY_PD_PRT_TYPE_UFP)
                 {
-                    if (bb_bind_to_port(port) == CCG_STAT_SUCCESS)
+                    if (Cy_PdAltMode_Billboard_BindToPort(ptrPdStackContext->ptrAltModeContext) == CY_PDSTACK_STAT_SUCCESS)
                     {
-                        (void)timer_start(port, (timer_id_t)APP_AME_TIMEOUT_TIMER , APP_AME_TIMEOUT_TIMER_PERIOD, ame_tmr_cbk);
+                        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,
+                                                    (cy_timer_id_t)APP_AME_TIMEOUT_TIMER, APP_AME_TIMEOUT_TIMER_PERIOD, ame_tmr_cbk);
                     }
                 }
                 else
                 {
-                    timer_stop (port, (timer_id_t)APP_AME_TIMEOUT_TIMER);
+                    CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext, (cy_timer_id_t)APP_AME_TIMEOUT_TIMER);
                 }
 #endif /* (CCG_BB_ENABLE != 0) */
             }
@@ -3074,14 +2933,14 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #if CY_PD_REV3_ENABLE
             if (ptrPdStackContext->dpmConfig.specRevSopLive >= CY_PD_REV3)
             {
-                app_stat->vdm_version = CY_PD_STD_VDM_VERSION_REV3;
+                ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.vdm_version = CY_PD_STD_VDM_VERSION_REV3;
                 /* Enable DATA_RESET message handling in PD 3.0 contract. */
                 ptrPdStackContext->dpmStat.usb4En = (uint8_t)true;
             }
             else
 #endif /* CY_PD_REV3_ENABLE */
             {
-                app_stat->vdm_version = CY_PD_STD_VDM_VERSION_REV2;
+                ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.vdm_version = CY_PD_STD_VDM_VERSION_REV2;
                 /* Clear USB4 enable flag so that data reset will be REJECTed by the stack. */
                 ptrPdStackContext->dpmStat.usb4En = (uint8_t)false;
             }
@@ -3101,7 +2960,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                  * Stop bad sink timer, but retain bad sink status until port
                  * detach or disable.
                  */
-                cy_sw_timer_stop(ptrPdStackContext->ptrTimerContext, APP_BAD_SINK_TIMEOUT_TIMER);
+                CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext,  GET_APP_TIMER_ID(ptrPdStackContext,APP_BAD_SINK_TIMEOUT_TIMER));
                 if (true == gl_bad_sink_apdo_sel[port])
                 {
                     gl_bad_sink_apdo_sel[port] = false;
@@ -3122,11 +2981,11 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                  * This function will have no effect if the Alt. Modes are already running.
                  */
                 if (
-                        (gl_dpm_port_type[port] == PRT_TYPE_UFP) ||
-                        (app_status[port].vdm_prcs_failed == false)
+                        (ptrPdStackContext->dpmConfig.curPortType == CY_PD_PRT_TYPE_UFP) ||
+                        (((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.vdm_prcs_failed == false)
                    )
                 {
-                    enable_vdm_task_mngr(port);
+                    Cy_PdAltMode_VdmTask_Enable(ptrPdStackContext->ptrAltModeContext);
                 }
 #endif /* (DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP) */
 
@@ -3148,24 +3007,24 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                    )
                 {
                     /* Update MUX in case of usb capabilities changes */
-                    set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0);
+                    Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
                 }
 #endif /* (RIDGE_SLAVE_ENABLE) || (BB_RETIMER_ENABLE) || (AMD_SUPP_ENABLE) */
             }
 
 #if (CCG_BB_ENABLE != 0)
             /* Now that there is a PD contract in place, we can set the self powered status flag. */
-            bb_update_self_pwr_status (port, 1);
+            Cy_PdAltMode_Billboard_UpdateSelfPwrStatus (ptrPdStackContext->ptrAltModeContext, 1);
 
             if (
-                    (contract_status->status != PD_CONTRACT_NEGOTIATION_SUCCESSFUL) &&
+                    (contract_status->status != CY_PDSTACK_CONTRACT_NEGOTIATION_SUCCESSFUL) &&
                     /* QAC suppression 3415: The check on the right hand side of logical operator
                      * is read only. */
                     (dpm_get_info(port)->cur_port_role == PRT_ROLE_SINK) && /* PRQA S 3415 */
-                    (gl_dpm_port_type[port] == PRT_TYPE_UFP)
+                    (ptrPdStackContext->dpmConfig.curPortType == CY_PD_PRT_TYPE_UFP)
                )
             {
-                (void)bb_enable(port, BB_CAUSE_PWR_FAILURE);
+                (void)Cy_PdAltMode_Billboard_Enable(ptrPdStackContext->ptrAltModeContext, BB_CAUSE_PWR_FAILURE);
             }
 #endif /* (CCG_BB_ENABLE != 0) */
 
@@ -3253,7 +3112,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
                )
             {
                 /* Update MUX in case of usb capabilities changes */
-                set_mux (ptrPdstackContext, MUX_CONFIG_SS_ONLY, 0);
+                Cy_PdAltMode_HW_SetMux(ptrPdstackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
             }
 #endif /* RIDGE_SLAVE_ENABLE */
             break;
@@ -3377,11 +3236,11 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
             {
                 gl_app_status[port].retimer_dis_req = true;
 #if BB_RETIMER_ENABLE
-                set_mux(ptrPdstackContext, MUX_CONFIG_RIDGE_CUSTOM, NO_DATA);
+                Cy_PdAltMode_HW_SetMux(ptrPdstackContext->ptrAltModeContext, MUX_CONFIG_RIDGE_CUSTOM, NO_DATA);
 #elif AMD_RETIMER_ENABLE
                 if(get_mux_state(port) != MUX_CONFIG_ISOLATE)
                 {
-                    set_mux(ptrPdstackContext, MUX_CONFIG_ISOLATE, NO_DATA);
+                    Cy_PdAltMode_HW_SetMux(ptrPdstackContext->ptrAltModeContext, MUX_CONFIG_ISOLATE, NO_DATA);
                 }
 #endif /* BB_RETIMER_ENABLE */
             }
@@ -3406,10 +3265,10 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 
         case APP_EVT_DATA_RESET_ACCEPTED:
         /* Need to reset alternate modes as part of Data_Reset. No status update is to be provided. */
-            alt_mode_layer_reset (port);
+            Cy_PdAltMode_Mngr_LayerReset ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext));
 
 #if (!CY_PD_CBL_DISC_DISABLE)
-            app_stat->cbl_disc_id_finished = false;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.cbl_disc_id_finished = false;
 #endif /* (!CY_PD_CBL_DISC_DISABLE) */
 
 #if (CCG_USB4_SUPPORT_ENABLE)
@@ -3418,21 +3277,25 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #endif /* CCG_USB4_SUPPORT_ENABLE */            
             /* Update : set_mux calls */
             /* Switch to USB only configuration once data reset has been accepted. */
+#if (UFP_ALT_MODE_SUPP || DFP_ALT_MODE_SUPP)
             if (ptrPdStackContext->dpmConfig.curPortType == CY_PD_PRT_TYPE_UFP)
             {
-                (void)set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0);
+                Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
             }
             else
             {
-                (void)set_mux (ptrPdStackContext, MUX_CONFIG_ISOLATE, 0);
+                Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_ISOLATE, 0u);
             }
+#endif
             break;
 
         case APP_EVT_DATA_RESET_CPLT:
             /* DFP needs to re-enable USBx connections at completion of Data_Reset. */
             if (ptrPdStackContext->dpmConfig.curPortType == CY_PD_PRT_TYPE_DFP)
             {
-                (void)set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0);
+#if (UFP_ALT_MODE_SUPP || DFP_ALT_MODE_SUPP)
+                Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
+#endif
             }
             break;
 
@@ -3452,7 +3315,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
         case APP_EVT_PKT_RCVD:
 #if CHUNKING_NOT_SUPPORTED
             /* Make sure we stop the timer that initiates NOT_SUPPORTED response sending. */
-            cy_sw_timer_stop(ptrPdStackContext->ptrTimerContext, APP_CHUNKED_MSG_RESP_TIMER);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext, APP_CHUNKED_MSG_RESP_TIMER));
 #endif /* CHUNKING_NOT_SUPPORTED */
 
 #if ((CCG_USB4_SUPPORT_ENABLE) || ((ICL_ENABLE) && (PROCHOT_SUPP)))
@@ -3473,7 +3336,7 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
             break;
 
         case APP_EVT_CBL_RESET_SENT:
-            app_stat->cbl_rst_done = true;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.cbl_rst_done = true;
             break;
 
 #if (!CY_PD_SINK_ONLY)
@@ -3481,7 +3344,9 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
 #if BB_RETIMER_ENABLE
             set_retimer_status(port, true);
 #endif /* BB_RETIMER_ENABLE */
-            set_mux (ptrPdStackContext, MUX_CONFIG_SS_ONLY, 0);
+#if (UFP_ALT_MODE_SUPP || DFP_ALT_MODE_SUPP)
+            Cy_PdAltMode_HW_SetMux(ptrPdStackContext->ptrAltModeContext, MUX_CONFIG_SS_ONLY, 0u);
+#endif /* (UFP_ALT_MODE_SUPP || DFP_ALT_MODE_SUPP) */
             break;
 #endif /* (!CY_PD_SINK_ONLY) */
 
@@ -3526,9 +3391,9 @@ void app_event_handler(cy_stc_pdstack_context_t *ptrPdStackContext,
              * NOTE: This may need to be re-implemented if the APP_PSOURCE_DIS_TIMER timer
              * is being implemented differently.
              */
-            if (cy_sw_timer_is_running(ptrPdStackContext->ptrTimerContext, APP_PSOURCE_DIS_TIMER) == false)
+            if (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning )(ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_PSOURCE_DIS_TIMER)) == false)
             {
-                (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, APP_PSOURCE_DIS_TIMER,
+                (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext,GET_APP_TIMER_ID(ptrPdStackContext, APP_PSOURCE_DIS_TIMER),
                         APP_PSOURCE_DIS_TIMER_PERIOD, app_psrc_invalid_vbus_tmr_cbk);
                 gl_app_invalid_vbus_dis_on[port] = true;
                 solution_fn_handler->app_get_callback_ptr(ptrPdStackContext)->vbus_discharge_on(ptrPdStackContext);
@@ -3669,29 +3534,30 @@ static bool app_cc_sbu_fault_handler(void *context, bool fault_type)
 void app_vbus_slow_discharge_cbk(void *pdStackContext)
 {
 #if VBUS_SLOW_DISCHARGE_EN
-    Cy_USBPD_Vbus_Slow_DischargeCbk((cy_en_usbpd_timer_id_t)VBUS_DISCHARGE_SCHEDULE_TIMER, ((cy_stc_pdstack_context_t *)pdStackContext)->ptrUsbPdContext);
+    cy_stc_pdstack_context_t *context =(cy_stc_pdstack_context_t *)pdStackContext;
+    Cy_USBPD_Vbus_Slow_DischargeCbk(GET_APP_TIMER_ID(context,VBUS_DISCHARGE_SCHEDULE_TIMER), context->ptrUsbPdContext);
 #else
     CY_UNUSED_PARAMETER(pdStackContext);
 #endif /* VBUS_SLOW_DISCHARGE_EN */
 }
 
 bool app_timer_start(cy_stc_usbpd_context_t *context, void *callbackContext, 
-        cy_en_usbpd_timer_id_t id, uint16_t period, cy_timer_cbk_t cbk)
+        uint16_t id, uint16_t period, cy_timer_cbk_t cbk)
 {
-    cy_stc_sw_timer_t *ptrTimerContext = ((cy_stc_pdstack_context_t *)context->pdStackContext)->ptrTimerContext;
-    return cy_sw_timer_start(ptrTimerContext, callbackContext, (cy_sw_timer_id_t)id, period, (cy_cb_timer_t)cbk);
+    cy_stc_pdutils_sw_timer_t *ptrTimerContext = ((cy_stc_pdstack_context_t *)context->pdStackContext)->ptrTimerContext;
+    return CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrTimerContext, callbackContext, (cy_timer_id_t)GET_PDL_TIMER_ID(context, id), period, (cy_cb_timer_t)cbk);
 }
 
 void app_timer_stop(cy_stc_usbpd_context_t *context, cy_en_usbpd_timer_id_t id)
 {
-    cy_stc_sw_timer_t *ptrTimerContext = ((cy_stc_pdstack_context_t *)context->pdStackContext)->ptrTimerContext;
-    cy_sw_timer_stop(ptrTimerContext, (cy_sw_timer_id_t)id);
+    cy_stc_pdutils_sw_timer_t *ptrTimerContext = ((cy_stc_pdstack_context_t *)context->pdStackContext)->ptrTimerContext;
+    CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrTimerContext, (cy_timer_id_t)GET_PDL_TIMER_ID(context, id));
 }
 
 bool app_timer_is_running(cy_stc_usbpd_context_t *context, cy_en_usbpd_timer_id_t id)
 {
-    cy_stc_sw_timer_t *ptrTimerContext = ((cy_stc_pdstack_context_t *)context->pdStackContext)->ptrTimerContext;
-    return cy_sw_timer_is_running(ptrTimerContext, (cy_sw_timer_id_t)id);
+    cy_stc_pdutils_sw_timer_t *ptrTimerContext = ((cy_stc_pdstack_context_t *)context->pdStackContext)->ptrTimerContext;
+    return CALL_MAP(Cy_PdUtils_SwTimer_IsRunning )(ptrTimerContext, (cy_timer_id_t)GET_PDL_TIMER_ID(context, id));
 }
 
 void timer_init(cy_stc_pdstack_context_t *ptrPdStackContext)
@@ -3707,143 +3573,127 @@ void timer_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 
 void app_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 {
-    uint8_t port;
-
-    /* For now, only the VDM handlers require an init call. */
-#if (NO_OF_TYPEC_PORTS > 1 && !defined(CY_DEVICE_WLC1))
-    for (port = 0; port < NO_OF_TYPEC_PORTS; port++)
-#else
-    port = 0;
-#endif /* (NO_OF_TYPEC_PORTS > 1) */
-    {
-        cy_stc_pdstack_context_t *context = solution_fn_handler->Get_PdStack_Context(port);
-
 #if CCG_LOAD_SHARING_ENABLE
-        gl_src_sel_pdo_max_volt[context->port] = 0u;
+    gl_src_sel_pdo_max_volt[ptrPdStackContext->port] = 0u;
 #endif /* CCG_LOAD_SHARING_ENABLE*/
 
-        /* Initialize the VDM responses from the configuration table. */
-        vdm_data_init(context);
+    /* Initialize the VDM responses from the configuration table. */
+    vdm_data_init(ptrPdStackContext);
 
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-        /* Set alt mode trigger based on config. */
-        app_get_status(context->port)->alt_mode_trig_mask = alt_mode_info->altModeTrig;
+    /* Set alt mode trigger based on config. */
+    ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.alt_mode_trig_mask = pd_get_ptr_dp_tbl(ptrPdStackContext->ptrUsbPdContext)->dp_mode_trigger;
 #endif /* ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP)) */
 
 #if CCG_USB4_SUPPORT_ENABLE
 #if RIDGE_SLAVE_ENABLE
-        /* Save host capabilities configuration */
-        app_get_status(port)->custom_hpi_host_cap_control = PD_GET_PTR_TBTHOST_CFG_TBL(port)->host_support;
-        if (PD_GET_PTR_TBTHOST_CFG_TBL(port)->vpro_capable)
-        {
-            app_get_status(port)->custom_hpi_host_cap_control |= APP_HPI_VPRO_SUPP_MASK;
-        }
-        if (
-               (PD_GET_PTR_TBTHOST_CFG_TBL(port)->usb4_support == USB_ROLE_HOST) ||
-               (PD_GET_PTR_TBTHOST_CFG_TBL(port)->usb4_support == USB_ROLE_DRD)
-            )
-        {
-            app_get_status(port)->custom_hpi_host_cap_control |= USB4_EN_HOST_PARAM_MASK;
-        }
+    /* Save host capabilities configuration */
+    app_get_status(ptrPdStackContext->port)->custom_hpi_host_cap_control = PD_GET_PTR_TBTHOST_CFG_TBL(ptrPdStackContext->port)->host_support;
+    if (PD_GET_PTR_TBTHOST_CFG_TBL(ptrPdStackContext->port)->vpro_capable)
+    {
+        app_get_status(ptrPdStackContext->port)->custom_hpi_host_cap_control |= APP_HPI_VPRO_SUPP_MASK;
+    }
+    if (
+           (PD_GET_PTR_TBTHOST_CFG_TBL(ptrPdStackContext->port)->usb4_support == USB_ROLE_HOST) ||
+           (PD_GET_PTR_TBTHOST_CFG_TBL(ptrPdStackContext->port)->usb4_support == USB_ROLE_DRD)
+        )
+    {
+        app_get_status(ptrPdStackContext->port)->custom_hpi_host_cap_control |= USB4_EN_HOST_PARAM_MASK;
+    }
 #elif AMD_SUPP_ENABLE
-        /* Save host capabilities configuration */
-        app_get_status(port)->custom_hpi_host_cap_control = PD_GET_PTR_AMD_CFG_TBL(port)->host_support;
-        if (PD_GET_PTR_AMD_CFG_TBL(port)->usb4_captive)
-        {
-            app_get_status(port)->custom_hpi_host_cap_control |= USB4_EN_HOST_PARAM_MASK;
-        }
+    /* Save host capabilities configuration */
+    app_get_status(ptrPdStackContext->port)->custom_hpi_host_cap_control = PD_GET_PTR_AMD_CFG_TBL(ptrPdStackContext->port)->host_support;
+    if (PD_GET_PTR_AMD_CFG_TBL(ptrPdStackContext->port)->usb4_captive)
+    {
+        app_get_status(ptrPdStackContext->port)->custom_hpi_host_cap_control |= USB4_EN_HOST_PARAM_MASK;
+    }
 #endif /* RIDGE_SLAVE_ENABLE */
 #if (!CCG_HPI_PD_CMD_DISABLE)
-        /* Set default host capabilities status */
-        hpi_set_host_cap_ctrl_reg (port, app_get_status(port)->custom_hpi_host_cap_control);
+    /* Set default host capabilities status */
+    hpi_set_host_cap_ctrl_reg (ptrPdStackContext->port, app_get_status(ptrPdStackContext->port)->custom_hpi_host_cap_control);
 #endif /* !CCG_HPI_PD_CMD_DISABLE */
 #endif /* CCG_USB4_SUPPORT_ENABLE */
 
 
 #if ((defined(CY_DEVICE_CCG6)) && OTP_ENABLE)
-        /* Init OT temperature tracking */
-        app_otp_enable (port);
+    /* Init OT temperature tracking */
+    app_otp_enable (ptrPdStackContext->port);
 #endif /* ((defined(CY_DEVICE_CCG6)) && OTP_ENABLE) */
 
 #if (CCG_BB_ENABLE != 0)
-        /*
-         * Initialize the billboard interface. The billboard
-         * interface shall not get initialized if it is not
-         * enabled in configuration table.
-         */
-        bb_init(port);
+    /*
+     * Initialize the billboard interface. The billboard
+     * interface shall not get initialized if it is not
+     * enabled in configuration table.
+     */
+    Cy_PdAltMode_Billboard_Init(ptrPdStackContext->ptrAltModeContext);
 #endif /* (CCG_BB_ENABLE != 0) */
 
 #if BATTERY_CHARGING_ENABLE
-        (void)bc_init(context);
+    (void)bc_init(ptrPdStackContext);
 #endif /* BATTERY_CHARGING_ENABLE */
 
 #if (ROLE_PREFERENCE_ENABLE)
-        if (get_pd_port_config(port)->tbthost_cfg_tbl_offset != 0)
-        {
+    if (get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->tbthost_cfg_tbl_offset != 0)
+    {
 #if (POWER_ROLE_PREFERENCE_ENABLE)
-            app_pref_power_role[port] = (PD_GET_PTR_TBTHOST_CFG_TBL(port)->pref_pwr_role);
+        app_pref_power_role[ptrPdStackContext->port] = (PD_GET_PTR_TBTHOST_CFG_TBL(ptrPdStackContext->port)->pref_pwr_role);
 #endif /* (POWER_ROLE_PREFERENCE_ENABLE) */
-            app_pref_data_role[port] = (PD_GET_PTR_TBTHOST_CFG_TBL(port)->pref_data_role);
-        }
+        app_pref_data_role[ptrPdStackContext->port] = (PD_GET_PTR_TBTHOST_CFG_TBL(ptrPdStackContext->port)->pref_data_role);
+    }
 #if AMD_SUPP_ENABLE
-        else if (get_pd_port_config(port)->amd_cfg_tbl_offset != 0)
-        {
+    else if (get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->amd_cfg_tbl_offset != 0)
+    {
 #if (POWER_ROLE_PREFERENCE_ENABLE)
-            app_pref_power_role[port] = (PD_GET_PTR_AMD_CFG_TBL(port)->pref_pwr_role);
+        app_pref_power_role[ptrPdStackContext->port] = (PD_GET_PTR_AMD_CFG_TBL(ptrPdStackContext->port)->pref_pwr_role);
 #endif /* (POWER_ROLE_PREFERENCE_ENABLE) */
-            app_pref_data_role[port] = (PD_GET_PTR_AMD_CFG_TBL(port)->pref_data_role);
-        }
+        app_pref_data_role[ptrPdStackContext->port] = (PD_GET_PTR_AMD_CFG_TBL(ptrPdStackContext->port)->pref_data_role);
+    }
 #endif /* AMD_SUPP_ENABLE */
 #endif /* (ROLE_PREFERENCE_ENABLE) */
 
 #if ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP))
-        /* Update alternate mode mask settings from config table. */
+    /* Update alternate mode mask settings from config table. */
+    {
+        if (get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->port_n_base_alt_mode_table_offset != 0u)
         {
-            if (get_pd_port_config(port)->alt_mode_tbl_offset != 0u)
-            {
-                alt_cfg_settings_t *altcfg = PD_GET_PTR_ALT_MODE_TBL(port);
+            cy_stc_pdaltmode_cfg_settings_t *altcfg = pd_get_ptr_base_alt_tbl(ptrPdStackContext->ptrUsbPdContext);
 
-                gl_app_status[port].dfp_alt_mode_mask = altcfg->dfp_mask;
-                gl_app_status[port].ufp_alt_mode_mask = altcfg->ufp_mask;
-            }
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.dfp_alt_mode_mask = altcfg->dfp_alt_mode_mask;
+            ((cy_stc_pdaltmode_context_t *)(ptrPdStackContext->ptrAltModeContext))->appStatus.ufp_alt_mode_mask = altcfg->ufp_alt_mode_mask;
         }
+    }
 #endif /* ((DFP_ALT_MODE_SUPP) || (UFP_ALT_MODE_SUPP)) */
 
-        /* Update : Handle config table calls */
-        /* Update custom host config settings to the stack. */
-        ptrPdStackContext->dpmStat.typecAccessorySuppDisabled = !(ptrPdStackContext->ptrPortCfg->accessoryEn);
-        ptrPdStackContext->dpmStat.typecRpDetachDisabled = !(ptrPdStackContext->ptrPortCfg->rpDetachEn);
-    }
+    /* Update : Handle config table calls */
+    /* Update custom host config settings to the stack. */
+    ptrPdStackContext->dpmStat.typecAccessorySuppDisabled = !(ptrPdStackContext->ptrPortCfg->accessoryEn);
+    ptrPdStackContext->dpmStat.typecRpDetachDisabled = !(ptrPdStackContext->ptrPortCfg->rpDetachEn);
+
 #if PD_SRC_POWER_SHARE_ENABLE
-        /* Excess power is not allocated to any ports. */
-        app_src_extra_power_port = NO_OF_TYPEC_PORTS;
+    /* Excess power is not allocated to any ports. */
+    app_src_extra_power_port = NO_OF_TYPEC_PORTS;
 #endif /* PD_SRC_POWER_SHARE_ENABLE */
 
 #if (CCG_TYPE_A_PORT_ENABLE == 1)
-        /* For systems with TYPEA port. */
-        if (get_pd_port_config(0)->type_a_enable)
-        {
-            type_a_port_enable();
-        }
-        else
-        {
-            /* Ensure that the state machine variables are initialized correctly. */
-            type_a_port_disable();
-        }
+    /* For systems with TYPEA ptrPdStackContext->port. */
+    if (get_pd_port_config(0)->type_a_enable)
+    {
+        type_a_port_enable();
+    }
+    else
+    {
+        /* Ensure that the state machine variables are initialized correctly. */
+        type_a_port_disable();
+    }
 #endif /* (CCG_TYPE_A_PORT_ENABLE == 1) */
 
 #if (defined (CCG5) || defined(CCG6) || defined(CCG5C) || defined(CCG6DF) || defined(CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))
 #if (!CCG_BACKUP_FIRMWARE)
 #if (CCG_CC_SBU_OVP_RETRY_LIMIT != 0)
     /* Set the retry limit where it is non-zero. */
-    gl_app_fault_retry_limit[0][FAULT_TYPE_CC_OVP]  = CCG_CC_SBU_OVP_RETRY_LIMIT;
-    gl_app_fault_retry_limit[0][FAULT_TYPE_SBU_OVP] = CCG_CC_SBU_OVP_RETRY_LIMIT;
-
-#if CCG_PD_DUALPORT_ENABLE
-    gl_app_fault_retry_limit[1][FAULT_TYPE_CC_OVP]  = CCG_CC_SBU_OVP_RETRY_LIMIT;
-    gl_app_fault_retry_limit[1][FAULT_TYPE_SBU_OVP] = CCG_CC_SBU_OVP_RETRY_LIMIT;
-#endif /* CCG_PD_DUALPORT_ENABLE */
+    gl_app_fault_retry_limit[ptrPdStackContext->port][FAULT_TYPE_CC_OVP]  = CCG_CC_SBU_OVP_RETRY_LIMIT;
+    gl_app_fault_retry_limit[ptrPdStackContext->port][FAULT_TYPE_SBU_OVP] = CCG_CC_SBU_OVP_RETRY_LIMIT;
 #endif /* (CCG_CC_SBU_OVP_RETRY_LIMIT != 0) */
 
     /* Register a callback for notification of CC/SBU faults. */
@@ -3858,7 +3708,7 @@ void app_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* defined (CCG5) || defined(CCG6) || defined(CCG5C) || defined(CCG6DF) || defined(CCG6SF) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)*/
 
 #if (ADVDM_SUPPORT != 0)
-    advdm_init(port);
+    advdm_init(ptrPdStackContext->port);
 #endif
 
 #if APP_PPS_SINK_SUPPORT
@@ -3866,15 +3716,21 @@ void app_init(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* APP_PPS_SINK_SUPPORT */
 }
 
-#if (CCG_APP_TASK_LPM_SLOW_POLL_ENABLE ||SYS_DEEPSLEEP_ENABLE)
+#if ((CCG_APP_TASK_LPM_SLOW_POLL_ENABLE ||SYS_DEEPSLEEP_ENABLE) && (!CCG_BOOT))
 
 extern bool pd_hal_is_cc_start_pending (void);
 
 /* Implements CCG deep sleep functionality for power saving. */
-bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
+bool system_sleep()
 {
     uint8_t intr_state;
-    bool dpm_slept = false;
+    bool dpm_slept[NO_OF_TYPEC_PORTS] = { 
+    false
+#if CCG_PD_DUALPORT_ENABLE
+    ,false
+#endif /* CCG_PD_DUALPORT_ENABLE */ 
+      };
+
     bool dpm_resume = false;
     bool app_slept = false;
     bool retval = false;
@@ -3912,20 +3768,22 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
     bool power_throttle_sleep_allowed;
 #endif /* (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_LOAD_SHARING_ENABLE) */
 
-    bool dpm_is_idle_flag;
 
+    for(i = 0; i < NO_OF_TYPEC_PORTS; i++)
+    {
     /* Do one DPM sleep capability check before locking interrupts out. */
-    Cy_PdStack_Dpm_IsIdle(ptrPdStackContext, &dpm_slept);
-    if (!dpm_slept)
+    Cy_PdStack_Dpm_IsIdle(solution_fn_handler->Get_PdStack_Context(i), &dpm_slept[i]);
+    if (!dpm_slept[i])
     {
         return retval;
+    }
     }
 
 #if CCG_LIN_ENABLE
     bool lins_slept = false;
 #endif /*CCG_LIN_ENABLE*/
 
-    intr_state = Cy_SysLib_EnterCriticalSection(); 
+    intr_state = Cy_SysLib_EnterCriticalSection();
 
     /*
      * We have to check the application layer, HPI and the Device Policy
@@ -3943,25 +3801,25 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
         app_slept = true;
 
 #if BATTERY_CHARGING_ENABLE
-        if (bc_sleep(ptrPdStackContext))
+        if (bc_sleep(solution_fn_handler->Get_PdStack_Context(0)))
         {
             bc_slept = true;
 #endif /* BATTERY_CHARGING_ENABLE */
 
 #if (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING)
-            sensor_is_idle = ccg_sensor_is_idle(ptrPdStackContext);
+            sensor_is_idle = ccg_sensor_is_idle(solution_fn_handler->Get_PdStack_Context(0));
 #endif /*(CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING) */
 
 #if CCG_LOAD_SHARING_ENABLE
-            ls_is_idle = ccg_ls_is_idle(ptrPdStackContext);
+            ls_is_idle = ccg_ls_is_idle(solution_fn_handler->Get_PdStack_Context(0));
 #endif /* CCG_LOAD_SHARING_ENABLE */
 
 #if CY_CABLE_COMP_ENABLE
-            cable_comp_is_idle = ccg_cable_comp_is_idle(ptrPdStackContext);
+            cable_comp_is_idle = ccg_cable_comp_is_idle(solution_fn_handler->Get_PdStack_Context(0));
 #endif /* CY_CABLE_COMP_ENABLE */
 
 #if (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_LOAD_SHARING_ENABLE || CCG_HPI_AUTO_CMD_ENABLE)
-            power_throttle_sleep_allowed = ccg_power_throttle_sleep_allowed(ptrPdStackContext);
+            power_throttle_sleep_allowed = ccg_power_throttle_sleep_allowed(solution_fn_handler->Get_PdStack_Context(0));
 #endif /* (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_LOAD_SHARING_ENABLE) */
 
             if (
@@ -4004,9 +3862,20 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* (CCG_TEMP_BASED_VOLTAGE_THROTTLING || CCG_VIN_BASED_VOLTAGE_THROTTLING || CCG_LOAD_SHARING_ENABLE) */
                        true)
             {
-                dpm_is_idle_flag = Cy_PdStack_Dpm_PrepareDeepSleep(ptrPdStackContext, &dpm_slept);
-                (void)dpm_is_idle_flag;
-                if(true == dpm_slept)
+                for(i = 0; i < NO_OF_TYPEC_PORTS; i++)
+                {
+
+                    (void)Cy_PdStack_Dpm_PrepareDeepSleep(solution_fn_handler->Get_PdStack_Context(i), &dpm_slept[i]);
+#if CCG_PD_DUALPORT_ENABLE
+                    if(false == dpm_slept[i]) 
+                    break;
+#endif /* CCG_PD_DUALPORT_ENABLE */
+                }
+                if(true == dpm_slept[0] 
+#if CCG_PD_DUALPORT_ENABLE
+                   && true == dpm_slept[1]
+#endif /* CCG_PD_DUALPORT_ENABLE */
+                  )
                 {
 
 #if CCG_SYNC_ENABLE
@@ -4027,11 +3896,11 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
 #if CCG_TYPE_A_PORT_ENABLE
                     (type_a_is_idle() == true) &&
 #endif /* CCG_TYPE_A_PORT_ENABLE */
-                    /* Update: Ask for removal */ 
+                    /* Update: Ask for removal */
                     (app_deepsleep_allowed() == true)
                     )
                 {
-                    cy_sw_timer_enter_sleep(ptrPdStackContext->ptrTimerContext);
+                    Cy_PdUtils_SwTimer_EnterSleep(solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext);
 
                     /*
                      * CDT 224642: The I2C IDLE check needs to be done as the last step
@@ -4068,7 +3937,7 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
                                 {
 #if CCG_VIN_BASED_VOLTAGE_THROTTLING
 #if ((VIN_OVP_ENABLE) || (VIN_UVP_ENABLE))
-                                    ccg_set_sensor_sleep_mode(ptrPdStackContext);
+                                    ccg_set_sensor_sleep_mode(solution_fn_handler->Get_PdStack_Context(i));
 #endif /* (VIN_OVP_ENABLE) || (VIN_UVP_ENABLE) */
 #endif /* CCG_VIN_BASED_VOLTAGE_THROTTLING */
                                     Cy_USBPD_SetReference(solution_fn_handler->Get_PdStack_Context(i)->ptrUsbPdContext, true);
@@ -4085,9 +3954,9 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
                                  * Hence, use additional clocks disable for ** silicon
                                  * to save more power in sleep mode.
                                  */
-                                if (Cy_USBPD_Get_Silicon_Rev(ptrPdStackContext->ptrUsbPdContext) == 0u)
+                                if (Cy_USBPD_Get_Silicon_Rev(solution_fn_handler->Get_PdStack_Context(0)->ptrUsbPdContext) == 0u)
                                 {
-                                    system_clock_disable();
+                                    Cy_USBPD_Vbus_SystemClockDisable(solution_fn_handler->Get_PdStack_Context(0)->ptrUsbPdContext);
                                 }
 #endif /* (defined(CY_DEVICE_CCG7D) && (VBAT_GND_SCP_ENABLE))*/
 #endif /* (defined(CY_DEVICE_CCG3PA) || defined(CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) */
@@ -4107,7 +3976,7 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
                                 {
 #if (defined(CY_DEVICE_CCG7S) && CY_USBPD_CGND_SHIFT_ENABLE)
                                     /* CC-PHY Wrapper Disabled */
-                                    Cy_USBPD_TypeC_CgndWrapperDisable(ptrPdStackContext->ptrUsbPdContext);
+                                    Cy_USBPD_TypeC_CgndWrapperDisable(solution_fn_handler->Get_PdStack_Context(0)->ptrUsbPdContext);
 #endif /* defined(CY_DEVICE_CCG7S) && CY_USBPD_CGND_SHIFT_ENABLE */
                             /* Device sleep entry. */
 #if defined(CY_DEVICE_CCG7D)
@@ -4117,7 +3986,7 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
                                      * Whereas,
                                      * *A silicon supports this.
                                      */
-                                    if (Cy_USBPD_Get_Silicon_Rev(ptrPdStackContext->ptrUsbPdContext) != 0u)
+                                    if (Cy_USBPD_Get_Silicon_Rev(solution_fn_handler->Get_PdStack_Context(0)->ptrUsbPdContext) != 0u)
                                     {
                                         /* Enter Deep Sleep mode to save power. */
                                         Cy_SysPm_CpuEnterDeepSleep();
@@ -4133,18 +4002,18 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* VBAT_GND_SCP_ENABLE */
                                     }
 #else
-                            Cy_SysPm_CpuEnterDeepSleep(); 
+                            Cy_SysPm_CpuEnterDeepSleep();
 #endif /* defined(CY_DEVICE_CCG7D) */
                         }
 #if (defined(CY_DEVICE_CCG3PA) || defined(CY_DEVICE_CCG3PA2) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))
 #if (defined(CY_DEVICE_CCG7S) && CY_USBPD_CGND_SHIFT_ENABLE)
                                 /* CC-PHY Wrapper Enabled */
-                                Cy_USBPD_TypeC_CgndWrapperEnable(ptrPdStackContext->ptrUsbPdContext);
+                                Cy_USBPD_TypeC_CgndWrapperEnable(solution_fn_handler->Get_PdStack_Context(0)->ptrUsbPdContext);
 #endif /* defined(CY_DEVICE_CCG7S) && CY_USBPD_CGND_SHIFT_ENABLE */
 #if (defined(CY_DEVICE_CCG7D) && (VBAT_GND_SCP_ENABLE))
-                                if (Cy_USBPD_Get_Silicon_Rev(ptrPdStackContext->ptrUsbPdContext) == 0u)
+                                if (Cy_USBPD_Get_Silicon_Rev(solution_fn_handler->Get_PdStack_Context(0)->ptrUsbPdContext) == 0u)
                                 {
-                                    system_clock_enable();
+                                    Cy_USBPD_Vbus_SystemClockEnable(solution_fn_handler->Get_PdStack_Context(0)->ptrUsbPdContext);
                                 }
 #endif /* defined(CY_DEVICE_CCG7D) && (VBAT_GND_SCP_ENABLE) */
 #if (NO_OF_TYPEC_PORTS > 1)
@@ -4187,9 +4056,16 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
     Cy_SysLib_ExitCriticalSection(intr_state);
 
     /* Call dpm_wakeup() if dpm_sleep() had returned true. */
-    if(dpm_slept)
+    if(true == dpm_slept[0] 
+#if CCG_PD_DUALPORT_ENABLE
+       && true == dpm_slept[1]
+#endif /* CCG_PD_DUALPORT_ENABLE */
+     )
     {
-      (void)Cy_PdStack_Dpm_Resume(ptrPdStackContext, &dpm_resume);
+      for(i = 0; i < NO_OF_TYPEC_PORTS; i++)
+      {
+      (void)Cy_PdStack_Dpm_Resume(solution_fn_handler->Get_PdStack_Context(i), &dpm_resume);
+      }
     }
 
     /* Call app_wakeup() if app_sleep() had returned true. */
@@ -4216,7 +4092,8 @@ bool system_sleep(cy_stc_pdstack_context_t *ptrPdStackContext)
 
     return retval;
 }
-#endif /* (CCG_APP_TASK_LPM_SLOW_POLL_ENABLE || SYS_DEEPSLEEP_ENABLE) */
+
+#endif /* (CCG_APP_TASK_LPM_SLOW_POLL_ENABLE || SYS_DEEPSLEEP_ENABLE) && (!CCG_BOOT) */
 
 #if ((VCONN_OCP_ENABLE) || (VCONN_SCP_ENABLE))
 #if VCONN_OCP_ENABLE
@@ -4334,7 +4211,7 @@ bool vconn_enable(cy_stc_pdstack_context_t *ptrPdStackContext, uint8_t channel)
 #if ((VCONN_OCP_ENABLE) || (VCONN_SCP_ENABLE))
 #if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))
     /* Enable VCONN OCP after the VCONN switch output is stable */
-    (void)cy_sw_timer_start(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, APP_VCONN_OCP_TIMER, APP_VCONN_OCP_SCP_EN_TIME_MS,
+    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(ptrPdStackContext->ptrTimerContext, ptrPdStackContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_VCONN_OCP_TIMER), APP_VCONN_OCP_SCP_EN_TIME_MS,
                                 app_vconn_ocp_scp_en_cb);
 #endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) */
 #endif /* ((VCONN_OCP_ENABLE) || (VCONN_SCP_ENABLE)) */
@@ -4361,7 +4238,7 @@ void vconn_disable(cy_stc_pdstack_context_t *ptrPdStackContext, uint8_t channel)
 #if ((VCONN_OCP_ENABLE) || (VCONN_SCP_ENABLE))
 #if (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))
     /* Disable VCONN OCP timer */
-    cy_sw_timer_stop(ptrPdStackContext->ptrTimerContext, APP_VCONN_OCP_TIMER);
+    CALL_MAP(Cy_PdUtils_SwTimer_Stop)(ptrPdStackContext->ptrTimerContext, GET_APP_TIMER_ID(ptrPdStackContext,APP_VCONN_OCP_TIMER));
 #endif /* (defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)) */
 #endif /* ((VCONN_OCP_ENABLE) || (VCONN_SCP_ENABLE)) */
 
@@ -4380,7 +4257,7 @@ bool vconn_is_present(cy_stc_pdstack_context_t *ptrPdStackContext)
 #endif /* (!CCG_VCONN_DISABLE) */
 }
 
-bool vbus_is_present(cy_stc_pdstack_context_t *ptrPdStackContext, uint16_t volt, int8 per)
+bool vbus_is_present(cy_stc_pdstack_context_t *ptrPdStackContext, uint16_t volt, int8_t per)
 {
 #if PSVP_FPGA_ENABLE
     bool ret;
@@ -4469,15 +4346,15 @@ uint16_t vbus_get_value(cy_stc_pdstack_context_t *ptrPdStackContext)
     system_disconnect_ovp_trip(port);
 #endif /* CCG4 */
 
-#if defined(CY_DEVICE_WLC1)
+#if defined(CY_DEVICE_SERIES_WLC1)
     retVal = ptrPdStackContext->ptrAppCbk->vbus_get_value(ptrPdStackContext);
-#else /* !defined(CY_DEVICE_WLC1) */
+#else /* !defined(CY_DEVICE_SERIES_WLC1) */
     /* Update : Update APP_VBUS in stack_params.h */
     /* Measure the actual VBUS voltage. */
     retVal = Cy_USBPD_Adc_MeasureVbus(ptrPdStackContext->ptrUsbPdContext,
                           APP_VBUS_POLL_ADC_ID,
                           APP_VBUS_POLL_ADC_INPUT);
-#endif /* defined(CY_DEVICE_WLC1) */
+#endif /* defined(CY_DEVICE_SERIES_WLC1) */
 
 #ifdef CCG4
     /* Connect OVP trip pin back to comparator output */
@@ -4497,11 +4374,7 @@ bool system_vconn_ocp_en(cy_stc_pdstack_context_t *context, cy_cb_vbus_fault_t c
 
 #if (defined (CY_DEVICE_CCG5) || defined(CY_DEVICE_CCG6) || defined(CY_DEVICE_CCG5C) || (defined(CY_DEVICE_CCG6DF)) || (defined(CY_DEVICE_CCG6SF)) || defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S))
 
-#if CONFIG_TABLE_FIXED
-#error "Fix"
-#else
-    if (1) //((get_pd_port_config(port)->protection_enable & ((uint8_t)CFG_TABLE_VCONN_OCP_EN_MASK)) != 0u)
-#endif /* CONFIG_TABLE_FIXED */
+    if (pd_get_ptr_vconn_ocp_tbl(context->ptrUsbPdContext)->enable)
     {
         /* Request the HAL to enable OCP detection with the appropriate debounce period. */
         Cy_USBPD_Fault_Vconn_OcpEnable(context->ptrUsbPdContext, cbk);
@@ -4618,13 +4491,50 @@ void system_vconn_scp_dis(cy_stc_pdstack_context_t *context)
 
 #endif /* VCONN_SCP_ENABLE */
 
+bool send_src_info (struct cy_stc_pdstack_context *ptrPdStackContext)
+{
+    bool is_supported = false;
+    cy_stc_pdstack_dpm_ext_status_t* ptrDpmExtStat = &(ptrPdStackContext->dpmExtStat);
+    bool temp_throttle = false;
+    bool vin_throttle = false;
+    bool load_sharing = false;
+#if CCG_TEMP_BASED_VOLTAGE_THROTTLING
+    if((ccg_power_throttle_get_feature_mask(ptrPdStackContext) & CCG_ENABLE_TEMP_BASED_THROTTLING) != 0u)
+    {
+       temp_throttle = true;
+    }
+#endif /* CCG_TEMP_BASED_VOLTAGE_THROTTLING */  
+#if CCG_VIN_BASED_VOLTAGE_THROTTLING
+    if((ccg_power_throttle_get_feature_mask(ptrPdStackContext) & CCG_ENABLE_VIN_BASED_THROTTLING) != 0u)
+    {
+      vin_throttle = true;
+    }
+#endif /* CCG_VIN_BASED_VOLTAGE_THROTTLING */
+#if CCG_LOAD_SHARING_ENABLE
+    if(ccg_ls_is_enabled(ptrPdStackContext))
+    {
+      load_sharing = true;
+    }
+    else
+    {
+        ptrDpmExtStat->srcInfo.src_info.portType = 1u;
+    }
+#endif /* CCG_LOAD_SHARING_ENABLE */
+    if(temp_throttle || vin_throttle || load_sharing)
+    {
+        is_supported = true;
+    }
+    (void)ptrDpmExtStat;
+    return is_supported;
+}
+
 bool app_is_host_hpd_virtual(uint8_t port)
 {
     bool ret = false;
 
 #if RIDGE_I2C_HPD_ENABLE
     if (
-            (get_pd_port_config(port)->tbthost_cfg_tbl_offset != 0) &&
+            (get_pd_port_config(ptrPdStackContext->ptrUsbPdContext)->tbthost_cfg_tbl_offset != 0) &&
             (PD_GET_PTR_TBTHOST_CFG_TBL(port)->hpd_handling != 0)
        )
 #else
@@ -4716,7 +4626,7 @@ static void snk_recontract_timer_cb (uint8_t port, timer_id_t id)
         if (stat != CCG_STAT_SUCCESS)
         {
             /* Restart the timer so that the command can be retried. */
-            (void)cy_sw_timer_start (port, id, 5u, snk_recontract_timer_cb);
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start) (port, id, 5u, snk_recontract_timer_cb);
         }
     }
     else
@@ -4876,7 +4786,7 @@ void lins_fault_handle(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_evt
 }
 #endif /* CCG_LIN_ENABLE */
 
-#if (CCG_LPM_GPIO_ENABLE || CCG_LIN_ENABLE)
+#if ((CCG_LPM_GPIO_ENABLE || CCG_LIN_ENABLE) && (!LIN_BOOT))
 /*******************************************************************************
 * Function Name: CyDisableInts
 ********************************************************************************
@@ -4891,9 +4801,9 @@ void lins_fault_handle(cy_stc_pdstack_context_t * context, cy_en_pdstack_app_evt
 *  interrupt status
 *
 *******************************************************************************/
-static uint32 CyDisableInts(void)
+static uint32_t CyDisableInts(void)
 {
-    uint32 intState;
+    uint32_t intState;
 
     /* Get current interrupt state. */
     intState = NVIC->ICER[0U];
@@ -4917,7 +4827,7 @@ static uint32 CyDisableInts(void)
 *  void
 *
 *******************************************************************************/
-static void CyEnableInts(uint32 mask)
+static void CyEnableInts(uint32_t mask)
 {
     NVIC->ISER[0U] = mask;
 }
@@ -4988,7 +4898,7 @@ void system_lpm_sleep(void)
             /* Disable all the WakeUp Interrupts */
             intr_en_status = CyDisableInts();
 
-            cy_sw_timer_enter_sleep(solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext);
+            Cy_PdUtils_SwTimer_EnterSleep(solution_fn_handler->Get_PdStack_Context(0)->ptrTimerContext);
 
 #if CCG_LPM_GPIO_ENABLE
             lpm_gpio_set_intr(GPIO_INTR_RISING);
@@ -5072,7 +4982,7 @@ void system_lpm_sleep(void)
 #endif /* !CCG_LPM_GPIO_ENABLE */
     CY_UNUSED_PARAMETER(intr_state);
 }
-#endif /* (CCG_LPM_GPIO_ENABLE || CCG_LIN_ENABLE) */
+#endif /* (CCG_LPM_GPIO_ENABLE || CCG_LIN_ENABLE) && (!LIN_BOOT) */
 
 bool app_is_typec_attached(void)
 {

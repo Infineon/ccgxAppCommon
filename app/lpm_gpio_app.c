@@ -1,22 +1,25 @@
-/***************************************************************************//**
-* \file lpm_gpio_app.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name:   lpm_gpio_app.c
+* \version 2.0
 *
-* This is GPIO based LPM source file 
+* Description: GPIO based LPM interface source file
+*
+* Related Document: See README.md
 *
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2022-2023 Cypress Semiconductor $
 *******************************************************************************/
+
+/*******************************************************************************
+ * Header files including
+ ******************************************************************************/
 
 #include <stddef.h>
 #include "config.h"
 #include "cy_device_headers.h"
 #include "lpm_gpio_app.h"
+#include "srom.h"
 
 #if CCG_LPM_GPIO_ENABLE
 /*******************************************************************************
@@ -56,7 +59,7 @@ void lpm_gpio_init(gpio_port_pin_t port_pin)
     
     gl_lpm_gpio = port_pin;
     
-    gpio_set_drv_mode(gl_lpm_gpio, GPIO_DM_HIZ_DIGITAL);
+    CALL_MAP(gpio_set_drv_mode)(gl_lpm_gpio, GPIO_DM_HIZ_DIGITAL);
 
     /* For all we know the interrupt is active. */
     NVIC_DisableIRQ((IRQn_Type)((gl_lpm_gpio & 0xF0u) >> 4u));
@@ -65,13 +68,13 @@ void lpm_gpio_init(gpio_port_pin_t port_pin)
     Cy_SysInt_SetVector((IRQn_Type)((gl_lpm_gpio & 0xF0u) >> 4u), &lpm_gpio_Int_handler);
 
     /* Enable it. */
-    gpio_clear_intr(gl_lpm_gpio);
+    CALL_MAP(gpio_clear_intr)(gl_lpm_gpio);
     NVIC_EnableIRQ((IRQn_Type)((gl_lpm_gpio & 0xF0u) >> 4u));
 
     /* Set the Interrupt Mode for the GPIO */
-    gpio_int_set_config(gl_lpm_gpio, GPIO_INTR_FALLING);
+    CALL_MAP(gpio_int_set_config)(gl_lpm_gpio, GPIO_INTR_FALLING);
 
-    if(gpio_read_value(gl_lpm_gpio) == false)
+    if(CALL_MAP(gpio_read_value)(gl_lpm_gpio) == false)
     {
         /* The GPIO is already low....So go to sleep */
         gl_sleep_mode = true;
@@ -84,7 +87,7 @@ void lpm_gpio_init(gpio_port_pin_t port_pin)
  */
 static void lpm_gpio_Int_handler(void)
 {
-    gpio_clear_intr(gl_lpm_gpio);
+    CALL_MAP(gpio_clear_intr)(gl_lpm_gpio);
 
     /* 
      * We will come here only as entry into LPM.
@@ -100,7 +103,7 @@ static void lpm_gpio_Int_handler(void)
  */
 static void lpm_gpio_rising_Int_handler(void)
 {
-    gpio_clear_intr(gl_lpm_gpio);
+    CALL_MAP(gpio_clear_intr)(gl_lpm_gpio);
 
     /*
      * We will come here only as entry into LPM.
@@ -139,18 +142,18 @@ void lpm_gpio_set_intr(gpio_intr_t intr)
     NVIC_DisableIRQ((IRQn_Type)((gl_lpm_gpio & 0xF0u) >> 4u));
     if(intr == GPIO_INTR_FALLING)
     {
-        gpio_int_set_config(gl_lpm_gpio, GPIO_INTR_FALLING);
+        CALL_MAP(gpio_int_set_config)(gl_lpm_gpio, GPIO_INTR_FALLING);
         /* Set the ISR to point to the LPM_GPIO_WAKEUP_IRQ Interrupt. */
         Cy_SysInt_SetVector((IRQn_Type)((gl_lpm_gpio & 0xF0u) >> 4u), &lpm_gpio_Int_handler);
     }
     else
     {
-        gpio_int_set_config(gl_lpm_gpio, GPIO_INTR_RISING);
+        CALL_MAP(gpio_int_set_config)(gl_lpm_gpio, GPIO_INTR_RISING);
         /* Set the ISR to point to the LPM_GPIO_WAKEUP_IRQ Interrupt. */
         Cy_SysInt_SetVector((IRQn_Type)((gl_lpm_gpio & 0xF0u) >> 4u), &lpm_gpio_rising_Int_handler);
     }
     /* Enable only the LPM_GPIOUp Interrupt */
-    gpio_clear_intr(gl_lpm_gpio);
+    CALL_MAP(gpio_clear_intr)(gl_lpm_gpio);
     NVIC_EnableIRQ((IRQn_Type)((gl_lpm_gpio & 0xF0u) >> 4u));
 }
 
@@ -160,7 +163,7 @@ void lpm_gpio_set_intr(gpio_intr_t intr)
  */
 void lpm_gpio_clr_intr(void)
 {
-    gpio_clear_intr(gl_lpm_gpio);
+    CALL_MAP(gpio_clear_intr)(gl_lpm_gpio);
 }
 
 /**
@@ -169,7 +172,7 @@ void lpm_gpio_clr_intr(void)
  */
 bool lpm_gpio_read(void)
 {
-    return (gpio_read_value(gl_lpm_gpio));
+    return (CALL_MAP(gpio_read_value)(gl_lpm_gpio));
 }
 
 #endif /* CCG_LPM_GPIO_ENABLE */

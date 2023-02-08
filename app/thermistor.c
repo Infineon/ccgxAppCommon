@@ -1,16 +1,13 @@
-/***************************************************************************//**
-* \file thermistor.c
-* \version 1.1.0 
+/******************************************************************************
+* File Name: thermistor.c
+* \version 2.0
 *
-* Thermistor handler source file.
+* Description: Thermistor handler source file.
 *
+* Related Document: See README.md
 *
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
+*******************************************************************************
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include <thermistor.h>
@@ -19,10 +16,11 @@
 #include "cy_gpio.h"
 #include "gpio.h"
 #include "cy_usbpd_vbus_ctrl.h"
-#include "cy_sw_timer_id.h"
+#include "app_timer_id.h"
+#include "app.h"
 
 #if (TEMPERATURE_SENSOR_COUNT != 0u)
-
+extern app_sln_handler_t *solution_fn_handler;
 #if TEMPERATURE_SENSOR_IS_THERMISTOR
 /* Array holds the pins to which the thermistors are attached */
 static gpio_port_pin_t gl_thermistor_gpio[NO_OF_TYPEC_PORTS][TEMPERATURE_SENSOR_COUNT] = 
@@ -182,7 +180,7 @@ uint8_t ccg_get_sensor_temperature(cy_stc_pdstack_context_t *ptrPdStackcontext, 
 #if (!(defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)))
     (void)Cy_USBPD_Adc_SelectVref(ptrPdStackContext->ptrUsbPdContext, APP_GPIO_POLL_ADC_ID, CY_USBPD_ADC_VREF_VDDD);
 #endif /* !(defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S) */
-    level = Cy_USBPD_Adc_Sample(ptrPdStackcontext->ptrUsbPdContext, APP_GPIO_POLL_ADC_ID, APP_GPIO_POLL_ADC_INPUT);
+    level = Cy_USBPD_Adc_Sample(solution_fn_handler->Get_PdStack_Context(0)->ptrUsbPdContext, APP_GPIO_POLL_ADC_ID, APP_GPIO_POLL_ADC_INPUT);
     therm_volt = ((level * THROTTLE_VDDD_REFERENCE)/PD_ADC_NUM_LEVELS);
 #if (!(defined(CY_DEVICE_CCG7D) || defined(CY_DEVICE_CCG7S)))
     (void)Cy_USBPD_Adc_SelectVref(ptrPdStackContext->ptrUsbPdContext, APP_GPIO_POLL_ADC_ID, CY_USBPD_ADC_VREF_PROG);

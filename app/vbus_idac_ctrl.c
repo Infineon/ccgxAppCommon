@@ -1,29 +1,15 @@
-/***************************************************************************//**
-* \file vbus_idac_ctrl.c
-* \version 1.1.0 
-*
-* VBUS IDAC control source file.
-*
-*
-********************************************************************************
-* \copyright
-* Copyright 2021-2022, Cypress Semiconductor Corporation. All rights reserved.
-* You may use this file only in accordance with the license, terms, conditions,
-* disclaimers, and limitations in the end user license agreement accompanying
-* the software package with which this file was provided.
-*******************************************************************************/
-
 #include "config.h"
 #include <stdbool.h>
 #include "cy_pdstack_common.h"
 #include <vbus_idac_ctrl.h>
-#include "cy_sw_timer.h"
+#include <cy_pdutils_sw_timer.h>
 #include <app.h>
 #include "cy_usbpd_defines.h"
-#include "cy_sw_timer_id.h"
+#include "app_timer_id.h"
 #include "cy_usbpd_vbus_ctrl.h"
 #include "cy_usbpd_idac_ctrl.h"
-
+#include "cy_usbpd_config_table.h"
+#include "srom.h"
 #if BATTERY_CHARGING_ENABLE
 #include <battery_charging.h>
 #endif /* BATTERY_CHARGING_ENABLE */
@@ -212,9 +198,8 @@ static uint16_t gl_req_volt[NO_OF_TYPEC_PORTS];
  * cycles of stable voltage attained. This variable should not be modified outside
  * of the state machine.
  */
-#if (PSVP_FPGA_ENABLE) || (VBTR_ENABLE)
 static uint8_t gl_vbus_settle_cycle_count[NO_OF_TYPEC_PORTS];
-#endif /* (PSVP_FPGA_ENABLE) || (VBTR_ENABLE) */
+
 
 #if VBUS_CTRL_RIPPLE_CHECK_ENABLE
 /*
@@ -378,7 +363,7 @@ static void vbus_ctrl_vbtr_cbk(void * callbackCtx, bool value)
      * Transition is completed.
      * Now invoke the psource set timer callback for the slope check.
      */
-    (void)cy_sw_timer_start(pdstack_ctx->ptrTimerContext, pdstack_ctx, APP_PSOURCE_VBUS_SET_TIMER_ID,
+    (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(pdstack_ctx->ptrTimerContext, pdstack_ctx,  GET_APP_TIMER_ID(pdstack_ctx,APP_PSOURCE_VBUS_SET_TIMER_ID),
         APP_PSOURCE_VBUS_SET_TIMER_PERIOD, vbus_ctrl_fb_set_volt_cbk);
 }
 #endif /* !VBTR_ENABLE */
@@ -406,9 +391,9 @@ static void vbus_ctrl_fb_set_volt_cbk(cy_timer_id_t id, void * callbackCtx)
     int16_t idac_change;
 #endif /* (VBUS_CTRL_ADC_ADJUST_ENABLE) */
 
-#if (!PSVP_FPGA_ENABLE) && (!VBTR_ENABLE)
+#if (!PSVP_FPGA_ENABLE)
     uint32_t tmp;
-#endif /* (!PSVP_FPGA_ENABLE) && (!VBTR_ENABLE) */
+#endif /* (!PSVP_FPGA_ENABLE) */
 #if ((VBUS_CTRL_ADC_ADJUST_ENABLE) || (VBUS_CTRL_TRIM_ADJUST_ENABLE))
     uint32_t abs_diff, thres;
     int16_t abs_diff_signed;
@@ -600,7 +585,7 @@ static void vbus_ctrl_fb_set_volt_cbk(cy_timer_id_t id, void * callbackCtx)
             break;
 
         case VBUS_CTRL_STATE_SLOPE_CHECK:
-#if (!PSVP_FPGA_ENABLE) && (!VBTR_ENABLE)
+#if (!PSVP_FPGA_ENABLE)
             tmp = vbus_get_value(context);
             if (gl_prev_volt[port] > tmp)
             {
@@ -660,7 +645,7 @@ static void vbus_ctrl_fb_set_volt_cbk(cy_timer_id_t id, void * callbackCtx)
 #endif /* (PSVP_FPGA_ENABLE) || (VBTR_ENABLE) */
                 break;
             }
-#else /* (PSVP_FPGA_ENABLE) || (VBTR_ENABLE) */
+#endif /* ((!PSVP_FPGA_ENABLE) */
             /*
              * We now need to debounce the slope check as the change can happen
              * slower than what we can measure. This debounce does an extended
@@ -673,7 +658,6 @@ static void vbus_ctrl_fb_set_volt_cbk(cy_timer_id_t id, void * callbackCtx)
             {
                 break;
             }
-#endif /* (!PSVP_FPGA_ENABLE) && (!VBTR_ENABLE) */
 #if (VBUS_CTRL_ADC_ADJUST_ENABLE)
             /*
              * If the final voltage is not yet achieved, then we need to proceed
@@ -716,14 +700,14 @@ static void vbus_ctrl_fb_set_volt_cbk(cy_timer_id_t id, void * callbackCtx)
              * required voltage. In case of PPS PDO, we need to enforce a minimum
              * settling time as there is no guaranteed voltage to look for.
              */
-            if (cy_sw_timer_is_running(context->ptrTimerContext, APP_PSOURCE_EN_TIMER))
+            if (CALL_MAP(Cy_PdUtils_SwTimer_IsRunning)(context->ptrTimerContext,  GET_APP_TIMER_ID(context,APP_PSOURCE_EN_TIMER)))
             {
                 uint16_t delay;
 
                 if (app_stat->cur_fb_enabled)
                 {
                     delay = (APP_PSOURCE_EN_TIMER_PERIOD - 
-                            cy_sw_timer_get_count(context->ptrTimerContext, APP_PSOURCE_EN_TIMER));
+                            Cy_PdUtils_SwTimer_GetCount(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_EN_TIMER)));
                     if (delay < VBUS_CTRL_SETTLE_TIME_PERIOD)
                     {
                         delay = (APP_PSOURCE_EN_HYS_TIMER_PERIOD + 
@@ -749,7 +733,7 @@ static void vbus_ctrl_fb_set_volt_cbk(cy_timer_id_t id, void * callbackCtx)
                     delay = APP_PSOURCE_EN_HYS_TIMER_PERIOD;
                 }
 
-                cy_sw_timer_start(context->ptrTimerContext,context,APP_PSOURCE_EN_HYS_TIMER, delay, app_psrc_tmr_cbk);
+                CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_PSOURCE_EN_HYS_TIMER), delay, app_psrc_tmr_cbk);
             }
             gl_vbus_ctrl_state[port] = VBUS_CTRL_STATE_OVER;
             /* Intentional fall through */
@@ -799,7 +783,7 @@ static void vbus_ctrl_fb_set_volt_cbk(cy_timer_id_t id, void * callbackCtx)
 #endif /* (VBTR_ENABLE) */
             )
         {
-            (void)cy_sw_timer_start(context->ptrTimerContext,context,APP_PSOURCE_VBUS_SET_TIMER_ID,
+            (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,GET_APP_TIMER_ID(context,APP_PSOURCE_VBUS_SET_TIMER_ID),
                     APP_PSOURCE_VBUS_SET_TIMER_PERIOD, vbus_ctrl_fb_set_volt_cbk);
         }
     }
@@ -894,7 +878,7 @@ void vbus_ctrl_fb_disable(cy_stc_pdstack_context_t * context)
     uint8_t port=context->port;
     (void)port;
 
-    cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_VBUS_SET_TIMER_ID);
+    CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_VBUS_SET_TIMER_ID));
 #if (VBUS_CTRL_STEP_US_ENABLE)
     VBUS_CTRL_TIMER_Stop();
 #endif /* (VBUS_CTRL_STEP_US_ENABLE) */
@@ -926,7 +910,7 @@ void vbus_ctrl_fb_set_volt(cy_stc_pdstack_context_t * context, uint16_t volt_mV)
      uint8_t port=context->port;
      (void)port;
     /* Stop any previous state machine execution on receiving a new request. */
-    cy_sw_timer_stop(context->ptrTimerContext, APP_PSOURCE_VBUS_SET_TIMER_ID);
+     CALL_MAP(Cy_PdUtils_SwTimer_Stop)(context->ptrTimerContext, GET_APP_TIMER_ID(context,APP_PSOURCE_VBUS_SET_TIMER_ID));
 #if (VBUS_CTRL_STEP_US_ENABLE)
     VBUS_CTRL_TIMER_Stop();
 #endif /* (VBUS_CTRL_STEP_US_ENABLE) */
@@ -997,14 +981,14 @@ void vbus_ctrl_fb_set_volt(cy_stc_pdstack_context_t * context, uint16_t volt_mV)
          * locally without having another monitor timer running from the psrc_enable()
          * function.
          */
-        (void)cy_sw_timer_start(context->ptrTimerContext,context,APP_PSOURCE_VBUS_SET_TIMER_ID,
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(context->ptrTimerContext,context,APP_PSOURCE_VBUS_SET_TIMER_ID,
             APP_PSOURCE_VBUS_SET_TIMER_PERIOD, vbus_ctrl_fb_set_volt_cbk);
     }
     else
     {
         gl_vbus_ctrl_state[port] = VBUS_CTRL_STATE_ENTRY;
         /* Now invoke the timer callback directly to avoid any delay. */
-        vbus_ctrl_fb_set_volt_cbk(APP_PSOURCE_VBUS_SET_TIMER_ID, context);
+        vbus_ctrl_fb_set_volt_cbk(GET_APP_TIMER_ID(context,APP_PSOURCE_VBUS_SET_TIMER_ID), context);
     }
 }
 

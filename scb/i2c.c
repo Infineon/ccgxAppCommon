@@ -1,5 +1,6 @@
 /******************************************************************************
 * File Name:   i2c.c
+* \version 2.0
 *
 * Description: I2C slave driver source file.
 *
@@ -7,7 +8,7 @@
 *
 *
 *******************************************************************************
-* $ Copyright 2021-YEAR Cypress Semiconductor $
+* $ Copyright 2021-2023 Cypress Semiconductor $
 *******************************************************************************/
 
 #include <stdint.h>
@@ -15,13 +16,13 @@
 #include "config.h"
 #include "cy_device_headers.h"
 #include "i2c.h"
-#include "cy_pdstack_utils.h"
-#include "cy_sw_timer.h"
-#include "cy_sw_timer_id.h"
+#include "cy_pdutils.h"
+#include <cy_pdutils_sw_timer.h>
+#include "app_timer_id.h"
 #include "system.h"
 #include "srom.h"
 #include "app.h"
-
+#if (!(SROM_CODE_SCB_I2C))
 /* Preamble size of read command. */
 #define I2C_SCB_PREAMBLE_SIZE (0x02u)
 #define I2C_SCB_TX_TRIGGER    (0x04u)
@@ -306,7 +307,7 @@ ATTRIBUTES_SCB_I2C static void i2c_scb_intr_handler(uint8_t scb_index)
         regVal = 0;
 
 #if (CCG_BOOT == 0)
-        CALL_MAP(cy_sw_timer_stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
 
 #endif /* (CCG_BOOT == 0) */
     }
@@ -423,14 +424,14 @@ ATTRIBUTES_SCB_I2C static void i2c_scb_intr_handler(uint8_t scb_index)
         scb_p->INTR_S       = (SCB_INTR_S_I2C_STOP_Msk | SCB_INTR_S_I2C_START_Msk);
 
 #if (CCG_BOOT == 0)
-        CALL_MAP(cy_sw_timer_stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
 #endif /* (CCG_BOOT == 0) */
     }
 
     if ((regVal & SCB_INTR_S_I2C_ADDR_MATCH_Msk) != 0u)
     {
 #if (CCG_BOOT == 0)
-        (void)CALL_MAP(cy_sw_timer_start)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, CALL_MAP(Get_PdStack_Context)(0), (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index, I2C_SLAVE_TIMER_PERIOD,
+        (void)CALL_MAP(Cy_PdUtils_SwTimer_Start)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, CALL_MAP(Get_PdStack_Context)(0), (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index, I2C_SLAVE_TIMER_PERIOD,
                 CALL_MAP(i2c_timer_cb));
         /* Clear the externally clocked I2C address match interrupt. */
         scb_p->INTR_I2C_EC |= SCB_INTR_I2C_EC_WAKE_UP_Msk;
@@ -520,7 +521,7 @@ ATTRIBUTES_SCB_I2C static void i2c_scb_intr_handler(uint8_t scb_index)
             i2c_slave_nak(scb_index);
 
 #if (CCG_BOOT == 0)
-            CALL_MAP(cy_sw_timer_stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
+            CALL_MAP(Cy_PdUtils_SwTimer_Stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
 #endif /* (CCG_BOOT == 0) */
         }
     }
@@ -551,7 +552,7 @@ ATTRIBUTES_SCB_I2C static void i2c_scb_intr_handler(uint8_t scb_index)
                 i2c_slave_nak(scb_index);
 
 #if (CCG_BOOT == 0)
-                CALL_MAP(cy_sw_timer_stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
+                CALL_MAP(Cy_PdUtils_SwTimer_Stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
 #endif /* (CCG_BOOT == 0) */
             }
         }
@@ -574,7 +575,7 @@ ATTRIBUTES_SCB_I2C static void i2c_scb_intr_handler(uint8_t scb_index)
         CALL_MAP(i2c_reset)(scb_index);
 
 #if (CCG_BOOT == 0)
-        CALL_MAP(cy_sw_timer_stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
+        CALL_MAP(Cy_PdUtils_SwTimer_Stop)(CALL_MAP(Get_PdStack_Context)(0)->ptrTimerContext, (uint8_t)I2C_SLAVE_TIMER_BASE + scb_index);
 #endif /* (CCG_BOOT == 0) */
     }
 }
@@ -832,5 +833,6 @@ ATTRIBUTES_SCB_I2C void i2c_scb_write(uint8_t  scb_index, uint8_t *source_ptr, u
 
     *count = idx;
 }
+#endif
 /* [] END OF FILE */
 

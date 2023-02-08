@@ -1,11 +1,12 @@
 var searchData=
 [
-  ['i2c_5fstate',['i2c_state',['../group__group__ccgxAppCommon.html#ae860b60991edd0d4f990a7df7a5cf0ef',1,'i2c_scb_config_t']]],
-  ['i2c_5fwrite_5fcount',['i2c_write_count',['../group__group__ccgxAppCommon.html#a8b5cdedc92ebdc0a253d8879753b6296',1,'i2c_scb_config_t']]],
-  ['inactive_5frow_5fnum',['inactive_row_num',['../group__group__ccgxAppCommon.html#a09636843c722ca67b6ad2278fdaaed5f',1,'sFWCT_ROW_NO_T']]],
-  ['is_5fhot_5fshutdown',['is_hot_shutdown',['../group__group__ccgxAppCommon.html#a9d60dc240288359ff986784132bd55a1',1,'app_status_t']]],
-  ['is_5fmux_5fbusy',['is_mux_busy',['../group__group__ccgxAppCommon.html#a41e14984ac88d19882fd0aabc5dec636',1,'app_status_t']]],
-  ['is_5fvbus_5fon',['is_vbus_on',['../group__group__ccgxAppCommon.html#a62e3af9024cfc9974b7e5519aeafdeca',1,'app_status_t']]],
-  ['is_5fvconn_5fon',['is_vconn_on',['../group__group__ccgxAppCommon.html#ac1af2016c765989d13346b03bb3aaa83',1,'app_status_t']]],
-  ['is_5fvdm_5fpending',['is_vdm_pending',['../group__group__ccgxAppCommon.html#a30801f4abe3771c45b70fded9948192f',1,'app_status_t']]]
+  ['get_5fpdstack_5fcontext',['Get_PdStack_Context',['../structapp__sln__handler__t.html#ac7e0a94145d4d5feed970ec0bc75006a',1,'app_sln_handler_t']]],
+  ['give_5fback_5fflag',['give_back_flag',['../group__group__ccgxAppCommon__data__structures.html#a84706b9c48b00f6cc87a869304489e6b',1,'pd_do_t::ROM_RDO_FIXED_VAR::give_back_flag()'],['../group__group__ccgxAppCommon__data__structures.html#a43775deac8d54d5c76d805d960294a23',1,'pd_do_t::ROM_RDO_FIXED_VAR_GIVEBACK::give_back_flag()'],['../group__group__ccgxAppCommon__data__structures.html#a4a52c5e3acb64da592c10be8ba6f37b9',1,'pd_do_t::ROM_RDO_BAT::give_back_flag()'],['../group__group__ccgxAppCommon__data__structures.html#a3d9f5c2d63e04c1f01ab896638c5e317',1,'pd_do_t::ROM_RDO_BAT_GIVEBACK::give_back_flag()'],['../group__group__ccgxAppCommon__data__structures.html#acff96ba0a0f1bfebfd527a52c90af79f',1,'pd_do_t::ROM_RDO_GEN::give_back_flag()'],['../group__group__ccgxAppCommon__data__structures.html#a4a661cccec209c33c42dc4ebfef8ea7d',1,'pd_do_t::ROM_RDO_GEN_GVB::give_back_flag()']]],
+  ['gl_5factive_5ffw',['gl_active_fw',['../group__group__ccgxAppCommon.html#ga574f405ef4ef66e82b34bd7fbe117b9f',1,'gl_active_fw():&#160;system.c'],['../group__group__ccgxAppCommon.html#ga574f405ef4ef66e82b34bd7fbe117b9f',1,'gl_active_fw():&#160;system.c']]],
+  ['gl_5fimg1_5ffw_5fmetadata',['gl_img1_fw_metadata',['../group__group__ccgxAppCommon.html#ga85a9c9e60bdf6a05fcb7fdba90406a1c',1,'gl_img1_fw_metadata():&#160;boot.c'],['../group__group__ccgxAppCommon.html#ga85a9c9e60bdf6a05fcb7fdba90406a1c',1,'gl_img1_fw_metadata():&#160;boot.c']]],
+  ['gl_5fimg1_5ffw_5fpseudo_5fmetadata',['gl_img1_fw_pseudo_metadata',['../group__group__ccgxAppCommon.html#ga977a6217be08fd77b2dd8ba0bc82e9c5',1,'gl_img1_fw_pseudo_metadata():&#160;boot.c'],['../group__group__ccgxAppCommon.html#ga977a6217be08fd77b2dd8ba0bc82e9c5',1,'gl_img1_fw_pseudo_metadata():&#160;boot.c']]],
+  ['gl_5fimg2_5ffw_5fmetadata',['gl_img2_fw_metadata',['../group__group__ccgxAppCommon.html#ga6e6dccbc6cb6e0410853a38bdcccb6af',1,'gl_img2_fw_metadata():&#160;boot.c'],['../group__group__ccgxAppCommon.html#ga6e6dccbc6cb6e0410853a38bdcccb6af',1,'gl_img2_fw_metadata():&#160;boot.c']]],
+  ['gl_5fimg2_5ffw_5fpseudo_5fmetadata',['gl_img2_fw_pseudo_metadata',['../group__group__ccgxAppCommon.html#ga58312a28a5af18f3fe3f5e5673d13855',1,'gl_img2_fw_pseudo_metadata():&#160;boot.c'],['../group__group__ccgxAppCommon.html#ga58312a28a5af18f3fe3f5e5673d13855',1,'gl_img2_fw_pseudo_metadata():&#160;boot.c']]],
+  ['gl_5fimg_5fstatus',['gl_img_status',['../group__group__ccgxAppCommon.html#gaec2fd46b2891d6b8cb7aad1d2dac6fd3',1,'gl_img_status():&#160;boot.c'],['../group__group__ccgxAppCommon.html#gaec2fd46b2891d6b8cb7aad1d2dac6fd3',1,'gl_img_status():&#160;boot.c']]],
+  ['gl_5finvalid_5fversion',['gl_invalid_version',['../group__group__ccgxAppCommon.html#ga861ab3087452424e2b5e9396766ac014',1,'gl_invalid_version():&#160;system.c'],['../group__group__ccgxAppCommon.html#ga861ab3087452424e2b5e9396766ac014',1,'gl_invalid_version():&#160;system.c']]]
 ];

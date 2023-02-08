@@ -83,7 +83,7 @@ $(document).ready(function(){initNavTree('structapp__sln__handler__t.html','');}
   <div class="summary">
 <a href="#pub-attribs">Data Fields</a>  </div>
   <div class="headertitle">
-<div class="title">app_sln_handler_t Struct Reference<div class="ingroups"><a class="el" href="group__group__ccgxAppCommon.html">Common source files</a></div></div>  </div>
+<div class="title">app_sln_handler_t Struct Reference<div class="ingroups"><a class="el" href="group__group__ccgxAppCommon.html">App Common Middleware</a><a class="el" href="group__group__ccgxAppCommon.html">App Common Middleware</a> &raquo;  &#124; <a class="el" href="group__group__ccgxAppCommon__macros.html">Macros</a> &raquo; <a class="el" href="group__group__ccgxAppCommon__data__structures.html">Data Structures</a></div></div>  </div>
 </div><!--header-->
 <div class="contents">
 <a name="details" id="details"></a><h2 class="groupheader">Description</h2>
@@ -100,9 +100,9 @@ Data Fields</h2></td></tr>
 <tr class="memitem:ac7e0a94145d4d5feed970ec0bc75006a"><td class="memItemLeft" align="right" valign="top">cy_stc_pdstack_context_t *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structapp__sln__handler__t.html#ac7e0a94145d4d5feed970ec0bc75006a">Get_PdStack_Context</a> )(uint8_t portIdx)</td></tr>
 <tr class="memdesc:ac7e0a94145d4d5feed970ec0bc75006a"><td class="mdescLeft">&#160;</td><td class="mdescRight">App Solution handler for mapping port index to context.  <a href="#ac7e0a94145d4d5feed970ec0bc75006a">More...</a><br /></td></tr>
 <tr class="separator:ac7e0a94145d4d5feed970ec0bc75006a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a26338638617e93d1d0b68673ed200a7e"><td class="memItemLeft" align="right" valign="top">bool(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structapp__sln__handler__t.html#a26338638617e93d1d0b68673ed200a7e">mux_ctrl_init</a> )(uint8_t port)</td></tr>
-<tr class="memdesc:a26338638617e93d1d0b68673ed200a7e"><td class="mdescLeft">&#160;</td><td class="mdescRight">App Solution level function to initialize the mux.  <a href="#a26338638617e93d1d0b68673ed200a7e">More...</a><br /></td></tr>
-<tr class="separator:a26338638617e93d1d0b68673ed200a7e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1c8dc8ce3f6b1942fc8691edd1abe6b0"><td class="memItemLeft" align="right" valign="top">bool(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structapp__sln__handler__t.html#a1c8dc8ce3f6b1942fc8691edd1abe6b0">mux_ctrl_init</a> )(cy_stc_pdstack_context_t *context)</td></tr>
+<tr class="memdesc:a1c8dc8ce3f6b1942fc8691edd1abe6b0"><td class="mdescLeft">&#160;</td><td class="mdescRight">App Solution level function to initialize the mux.  <a href="#a1c8dc8ce3f6b1942fc8691edd1abe6b0">More...</a><br /></td></tr>
+<tr class="separator:a1c8dc8ce3f6b1942fc8691edd1abe6b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9494042186f66754d573405bd2b5db17"><td class="memItemLeft" align="right" valign="top">cy_en_pdstack_status_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structapp__sln__handler__t.html#a9494042186f66754d573405bd2b5db17">uvdm_handle_device_reset</a> )(uint32_t reset_sig)</td></tr>
 <tr class="memdesc:a9494042186f66754d573405bd2b5db17"><td class="mdescLeft">&#160;</td><td class="mdescRight">App Solution level function to reset device.  <a href="#a9494042186f66754d573405bd2b5db17">More...</a><br /></td></tr>
 <tr class="separator:a9494042186f66754d573405bd2b5db17"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -156,14 +156,14 @@ Data Fields</h2></td></tr>
 
 </div>
 </div>
-<a id="a26338638617e93d1d0b68673ed200a7e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a26338638617e93d1d0b68673ed200a7e">&#9670;&nbsp;</a></span>mux_ctrl_init</h2>
+<a id="a1c8dc8ce3f6b1942fc8691edd1abe6b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1c8dc8ce3f6b1942fc8691edd1abe6b0">&#9670;&nbsp;</a></span>mux_ctrl_init</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">bool(* app_sln_handler_t::mux_ctrl_init) (uint8_t port)</td>
+          <td class="memname">bool(* app_sln_handler_t::mux_ctrl_init) (cy_stc_pdstack_context_t *context)</td>
         </tr>
       </table>
 </div><div class="memdoc">

@@ -1,8 +1,7 @@
 var searchData=
 [
-  ['requested_5fqc_5fvolt',['requested_qc_volt',['../group__group__ccgxAppCommon.html#ab77e27b74abb657761f79c058287628c',1,'bc_status_t']]],
-  ['reserved',['reserved',['../group__group__ccgxAppCommon.html#a4c561bc2c8805f2d4c05b6d7e80da962',1,'fw_img_status_t::fw_mode_reason_t']]],
-  ['reserved1',['reserved1',['../group__group__ccgxAppCommon.html#a53d3a215cfe5eced7d6ecd3c9b64ab11',1,'fw_img_status_t::fw_mode_reason_t::reserved1()'],['../group__group__ccgxAppCommon.html#a2c15e26edcdae49aa7c25509d27c995a',1,'sys_fw_metadata_t::reserved1()']]],
-  ['reserved2',['reserved2',['../group__group__ccgxAppCommon.html#a6475228efc222f5996632d0a00a7f5bd',1,'sys_fw_metadata_t']]],
-  ['retimer_5fdis_5freq',['retimer_dis_req',['../group__group__ccgxAppCommon.html#aaff0d7fbb70b1fcae0b24e41c871b90f',1,'app_status_t']]]
+  ['no_5fof_5fcmd_5fdo',['no_of_cmd_do',['../group__group__ccgxAppCommon__data__structures.html#a38148c5a7a6d3da6550186300cb016a6',1,'dpm_pd_cmd_buf_t']]],
+  ['no_5fresp',['no_resp',['../group__group__ccgxAppCommon__data__structures.html#a625c61c18d28fd9b2e582435c822fb56',1,'rom_vdm_resp_t']]],
+  ['no_5fusb_5fsuspend',['no_usb_suspend',['../group__group__ccgxAppCommon__data__structures.html#aa68bb83197284bc23cbd30a494a58532',1,'pd_do_t::ROM_RDO_FIXED_VAR::no_usb_suspend()'],['../group__group__ccgxAppCommon__data__structures.html#a2397c454b9994cbded86de15af14e854',1,'pd_do_t::ROM_RDO_FIXED_VAR_GIVEBACK::no_usb_suspend()'],['../group__group__ccgxAppCommon__data__structures.html#a8379bc41ae18e6601acf58de35d9c87a',1,'pd_do_t::ROM_RDO_BAT::no_usb_suspend()'],['../group__group__ccgxAppCommon__data__structures.html#a8e741c42e83826e63c4219110c512bda',1,'pd_do_t::ROM_RDO_BAT_GIVEBACK::no_usb_suspend()'],['../group__group__ccgxAppCommon__data__structures.html#a4fdc7ed68c7ef5ad4411c75d43b8d2f3',1,'pd_do_t::ROM_RDO_GEN::no_usb_suspend()'],['../group__group__ccgxAppCommon__data__structures.html#a42b52103624df0de8fad02f1215e36ce',1,'pd_do_t::ROM_RDO_GEN_GVB::no_usb_suspend()'],['../group__group__ccgxAppCommon__data__structures.html#ac43d9d2a9a5151dcd9c501476b0d496c',1,'pd_do_t::ROM_RDO_PPS::no_usb_suspend()']]],
+  ['non_5fintr_5fresponse',['non_intr_response',['../structdpm__status__t.html#acc172f6fc9f091970ffbba1a390b5d00',1,'dpm_status_t']]]
 ];
